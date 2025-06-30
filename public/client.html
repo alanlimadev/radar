@@ -1,0 +1,613 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Chat Offline</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 20px;
+      }
+      #messages {
+        height: 300px;
+        overflow-y: scroll;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        background: #fff;
+      }
+      .message {
+        margin-bottom: 8px;
+        padding: 8px 12px;
+        border-radius: 18px;
+        max-width: 80%;
+        word-break: break-word;
+      }
+      .system {
+        background-color: #f0f0f0;
+        color: #666;
+        font-style: italic;
+        margin: 5px auto;
+        text-align: center;
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 0.9em;
+        max-width: 90%;
+      }
+      .outgoing {
+        background-color: #dcf8c6;
+        margin-left: auto;
+        border-top-right-radius: 5px;
+      }
+      .incoming {
+        background-color: #ebebeb;
+        margin-right: auto;
+        border-top-left-radius: 5px;
+      }
+      .message-header {
+        font-weight: bold;
+        margin-bottom: 3px;
+        font-size: 0.9em;
+      }
+      .outgoing .message-header {
+        color: #128c7e;
+      }
+      .incoming .message-header {
+        color: #007bff;
+      }
+      .messageInput {
+        display: flex;
+        margin-top: 10px;
+      }
+      input,
+      button {
+        padding: 12px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+      }
+      input {
+        flex-grow: 1;
+        margin-right: 8px;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      button:hover {
+        background-color: #0069d9;
+      }
+      .status {
+        text-align: center;
+        padding: 8px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+      }
+      .connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .connecting {
+        background-color: #fff3cd;
+        color: #856404;
+      }
+      .disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      #loginForm {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+      }
+      #loginForm button {
+        margin-top: 10px;
+        padding: 12px;
+      }
+      .timestamp {
+        font-size: 0.7em;
+        color: #999;
+        margin-top: 3px;
+        text-align: right;
+      }
+      .typing-indicator {
+        color: #666;
+        font-style: italic;
+        margin: 5px 0;
+        height: 20px;
+      }
+      #debug {
+        margin-top: 20px;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 8px;
+        background: #333;
+        color: #0f0;
+        border-radius: 4px;
+        display: none;
+      }
+
+      .share-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        width: 300px;
+        max-width: 90%;
+        text-align: center;
+      }
+
+      .modal-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 24px;
+        cursor: pointer;
+        color: #fff;
+      }
+
+      #qrcode-container {
+        margin: 20px auto;
+        width: 200px;
+        height: 200px;
+      }
+
+      .share-url {
+        word-break: break-all;
+        margin-top: 10px;
+        padding: 8px;
+        background: #f0f0f0;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Chat Offline</h1>
+      <div id="connectionStatus" class="status connecting">
+        Conectando ao servidor...
+      </div>
+
+      <div id="loginForm">
+        <label for="username">Seu nome:</label>
+        <input
+          type="text"
+          id="username"
+          placeholder="Digite seu nome para entrar"
+          autocomplete="off"
+        />
+        <button id="joinButton" onclick="join()">Entrar no Chat</button>
+      </div>
+
+      <div id="chatContainer" style="display: none">
+        <div id="messages"></div>
+        <div class="typing-indicator" id="typingIndicator"></div>
+        <div class="messageInput">
+          <input
+            type="text"
+            id="messageInput"
+            placeholder="Digite sua mensagem..."
+            autocomplete="off"
+          />
+          <button onclick="sendMessage()">Enviar</button>
+        </div>
+      </div>
+
+      <div id="debug"></div>
+    </div>
+
+    <button id="shareButton" class="share-button" title="Compartilhar link">
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+        <polyline points="16 6 12 2 8 6"></polyline>
+        <line x1="12" y1="2" x2="12" y2="15"></line>
+      </svg>
+    </button>
+
+    <div id="qrModal" class="modal">
+      <span class="modal-close">&times;</span>
+      <div class="modal-content">
+        <h2>Compartilhe este chat</h2>
+        <p>Escaneie o QR Code abaixo para acessar</p>
+        <div id="qrcode-container"></div>
+        <div class="share-url" id="shareUrl"></div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      let socket;
+      let username = '';
+      let isConnected = false;
+      let serverIps = [];
+      let serverPort = 3000;
+
+      const connectionStatus = document.getElementById('connectionStatus');
+      const loginForm = document.getElementById('loginForm');
+      const chatContainer = document.getElementById('chatContainer');
+      const messagesContainer = document.getElementById('messages');
+      const messageInput = document.getElementById('messageInput');
+      const typingIndicator = document.getElementById('typingIndicator');
+      const debugPanel = document.getElementById('debug');
+      const shareButton = document.getElementById('shareButton');
+      const qrModal = document.getElementById('qrModal');
+      const modalClose = document.querySelector('.modal-close');
+
+      debugPanel.style.display = 'none';
+
+      window.onload = function () {
+        initializeSocketConnection();
+
+        messageInput.addEventListener('keypress', function (e) {
+          if (e.key === 'Enter') {
+            sendMessage();
+          }
+        });
+
+        document
+          .getElementById('username')
+          .addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+              join();
+            }
+          });
+
+        messageInput.addEventListener('input', function () {
+          if (isConnected && username) {
+            socket.emit('typing', { isTyping: messageInput.value.length > 0 });
+          }
+        });
+
+        shareButton.addEventListener('click', function () {
+          generateQRCode();
+          qrModal.style.display = 'flex';
+        });
+
+        modalClose.addEventListener('click', function () {
+          qrModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', function (event) {
+          if (event.target === qrModal) {
+            qrModal.style.display = 'none';
+          }
+        });
+      };
+
+      function initializeSocketConnection() {
+        addLogMessage('Iniciando conexão com o servidor...');
+        connectionStatus.className = 'status connecting';
+        connectionStatus.textContent = 'Conectando ao servidor...';
+
+        const opts = {
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 10,
+        };
+
+        socket = io(window.location.origin, opts);
+
+        socket.on('connect', () => {
+          isConnected = true;
+          addLogMessage('✅ Conectado ao servidor! ID: ' + socket.id);
+          connectionStatus.className = 'status connected';
+          connectionStatus.textContent =
+            'Conectado! Digite seu nome para entrar.';
+        });
+
+        socket.on('disconnect', () => {
+          isConnected = false;
+          addLogMessage('❌ Desconectado do servidor');
+          connectionStatus.className = 'status disconnected';
+          connectionStatus.textContent =
+            'Desconectado do servidor. Tentando reconectar...';
+        });
+
+        socket.on('connect_error', (error) => {
+          addLogMessage('❌ Erro de conexão: ' + error.message);
+          connectionStatus.className = 'status disconnected';
+          connectionStatus.textContent = 'Erro ao conectar: ' + error.message;
+        });
+
+        socket.on('serverIps', (data) => {
+          addLogMessage(
+            `IPs do servidor recebidos: ${JSON.stringify(data.ips)}`,
+          );
+          serverIps = data.ips;
+          serverPort = data.port;
+        });
+
+        socket.on('joinResponse', (response) => {
+          addLogMessage(
+            `Resposta de entrada recebida: ${JSON.stringify(response)}`,
+          );
+
+          if (response && response.data) {
+            addLogMessage('Entrada confirmada: ' + response.data);
+
+            loginForm.style.display = 'none';
+            chatContainer.style.display = 'block';
+
+            connectionStatus.textContent = `Conectado como: ${username}`;
+
+            addSystemMessage(response.data);
+
+            const joinButton = document.getElementById('joinButton');
+            joinButton.disabled = false;
+            joinButton.textContent = 'Entrar no Chat';
+
+            messageInput.focus();
+          } else {
+            addLogMessage('⚠️ ERRO: Resposta inválida do servidor');
+            document.getElementById('joinButton').disabled = false;
+            document.getElementById('joinButton').textContent =
+              'Entrar no Chat';
+            alert(
+              'Erro ao entrar no chat. Verifique o painel de debug para mais detalhes.',
+            );
+          }
+        });
+
+        socket.on('userJoined', handleUserJoined);
+        socket.on('userLeft', handleUserLeft);
+        socket.on('messageReceived', handleMessageReceived);
+        socket.on('typing', handleUserTyping);
+      }
+
+      function join() {
+        const usernameInput = document.getElementById('username');
+        username = usernameInput.value.trim();
+
+        if (!username) {
+          alert('Por favor, digite seu nome para entrar.');
+          usernameInput.focus();
+          return;
+        }
+
+        if (!isConnected) {
+          alert('Aguarde a conexão com o servidor...');
+          return;
+        }
+
+        addLogMessage(`Tentando entrar no chat como "${username}"...`);
+        document.getElementById('joinButton').disabled = true;
+        document.getElementById('joinButton').textContent = 'Entrando...';
+
+        try {
+          socket.emit('join', username);
+          addLogMessage("Solicitação 'join' enviada ao servidor...");
+        } catch (error) {
+          addLogMessage(`ERRO na função join: ${error.message}`);
+          document.getElementById('joinButton').disabled = false;
+          document.getElementById('joinButton').textContent = 'Entrar no Chat';
+          alert('Erro ao entrar no chat: ' + error.message);
+        }
+      }
+
+      function sendMessage() {
+        const text = messageInput.value.trim();
+
+        if (!text) return;
+
+        addLogMessage(`Enviando mensagem: "${text}"`);
+
+        const timestamp = new Date().toISOString();
+
+        socket.emit('message', { text, timestamp });
+
+        addMessage({
+          sender: username,
+          text: text,
+          timestamp: timestamp,
+          isMine: true,
+        });
+
+        messageInput.value = '';
+
+        socket.emit('typing', { isTyping: false });
+      }
+
+      function handleUserJoined(username) {
+        addLogMessage(`Usuário entrou: ${username}`);
+        addSystemMessage(`${username} entrou no chat`);
+      }
+
+      function handleUserLeft(username) {
+        addLogMessage(`Usuário saiu: ${username}`);
+        addSystemMessage(`${username} saiu do chat`);
+      }
+
+      function handleMessageReceived(message) {
+        addLogMessage(
+          `Mensagem recebida de ${message.sender}: ${message.text}`,
+        );
+
+        if (message.sender !== username) {
+          addMessage({
+            sender: message.sender,
+            text: message.text,
+            timestamp: message.timestamp,
+            isMine: false,
+          });
+        }
+      }
+
+      function handleUserTyping(data) {
+        if (data.username !== username && data.isTyping) {
+          typingIndicator.textContent = `${data.username} está digitando...`;
+        } else {
+          typingIndicator.textContent = '';
+        }
+      }
+
+      function addMessage(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className =
+          'message ' + (message.isMine ? 'outgoing' : 'incoming');
+
+        const header = document.createElement('div');
+        header.className = 'message-header';
+        header.textContent = message.sender;
+
+        const body = document.createElement('div');
+        body.className = 'message-body';
+        body.textContent = message.text;
+
+        const time = document.createElement('div');
+        time.className = 'timestamp';
+        time.textContent = formatTime(message.timestamp);
+
+        messageDiv.appendChild(header);
+        messageDiv.appendChild(body);
+        messageDiv.appendChild(time);
+
+        messagesContainer.appendChild(messageDiv);
+        scrollToBottom();
+      }
+
+      function addSystemMessage(text) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message system';
+        messageDiv.textContent = text;
+
+        messagesContainer.appendChild(messageDiv);
+        scrollToBottom();
+      }
+
+      function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
+
+      function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      function log(message, data) {
+        console.log(message, data || '');
+        addLogMessage(message + (data ? ': ' + JSON.stringify(data) : ''));
+      }
+
+      function addLogMessage(message) {
+        const logLine = document.createElement('div');
+        logLine.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+        debugPanel.appendChild(logLine);
+        debugPanel.scrollTop = debugPanel.scrollHeight;
+      }
+
+      function generateQRCode() {
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        const shareUrl = document.getElementById('shareUrl');
+
+        qrcodeContainer.innerHTML = '';
+
+        let qrUrl = window.location.href;
+
+        if (serverIps && serverIps.length > 0) {
+          const currentHost = window.location.hostname;
+          if (
+            currentHost === 'localhost' ||
+            currentHost === '127.0.0.1' ||
+            !serverIps.includes(currentHost)
+          ) {
+            const serverIp = serverIps[0];
+            const path = window.location.pathname;
+            qrUrl = `http://${serverIp}:${serverPort}${path}`;
+            addLogMessage(`Usando IP do servidor para QR Code: ${qrUrl}`);
+          }
+        }
+
+        shareUrl.textContent = qrUrl;
+
+        try {
+          const qr = qrcode(0, 'M');
+          qr.addData(qrUrl);
+          qr.make();
+
+          const qrImage = qr.createImgTag(5);
+          qrcodeContainer.innerHTML = qrImage;
+
+          addLogMessage(`QR Code gerado para URL: ${qrUrl}`);
+        } catch (error) {
+          addLogMessage(`Erro ao gerar QR Code: ${error.message}`);
+          qrcodeContainer.innerHTML =
+            '<p style="color: red">Erro ao gerar QR Code</p>';
+        }
+      }
+
+      document.addEventListener('keydown', function (e) {
+        if (e.ctrlKey && e.key === 'd') {
+          debugPanel.style.display =
+            debugPanel.style.display === 'none' ? 'block' : 'none';
+          e.preventDefault();
+        }
+      });
+    </script>
+  </body>
+</html>
