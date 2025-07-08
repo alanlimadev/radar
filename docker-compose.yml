@@ -1,0 +1,11 @@
+services:
+  postgresql:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: kahootdb
+    ports:
+      - '5432:5432'
+  
