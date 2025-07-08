@@ -1,0 +1,93 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum GameSessionStatus {
+    IN_PROGRESS
+    FINISHED
+}
+
+model User {
+    id           String @id @default(uuid())
+    name         String
+    email        String @unique
+    passwordHash String
+    quizzes      Quiz[] @relation("UserQuizzes")
+
+    @@map("users")
+}
+
+model Quiz {
+    id          String        @id @default(uuid())
+    title       String
+    description String?
+    createdBy   String
+    creator     User          @relation("UserQuizzes", fields: [createdBy], references: [id])
+    questions   Question[]
+    sessions    GameSession[]
+
+    @@map("quizzes")
+}
+
+model Question {
+    id           String        @id @default(uuid())
+    text         String
+    quizId       String
+    quiz         Quiz          @relation(fields: [quizId], references: [id])
+    alternatives Alternative[]
+    Answer       Answer[]
+
+    @@map("questions")
+}
+
+model Alternative {
+    id         String   @id @default(uuid())
+    text       String
+    isCorrect  Boolean
+    questionId String
+    question   Question @relation(fields: [questionId], references: [id])
+    Answer     Answer[]
+
+    @@map("alternatives")
+}
+
+model GameSession {
+    id        String            @id @default(uuid())
+    quizId    String
+    quiz      Quiz              @relation(fields: [quizId], references: [id])
+    status    GameSessionStatus
+    startedAt DateTime
+    endedAt   DateTime?
+    players   Player[]
+
+    @@map("game_sessions")
+}
+
+model Player {
+    id            String      @id @default(uuid())
+    name          String
+    gameSessionId String
+    gameSession   GameSession @relation(fields: [gameSessionId], references: [id])
+    answers       Answer[]
+
+    @@map("players")
+}
+
+model Answer {
+    id            String      @id @default(uuid())
+    playerId      String
+    player        Player      @relation(fields: [playerId], references: [id])
+    questionId    String
+    question      Question    @relation(fields: [questionId], references: [id])
+    alternativeId String
+    alternative   Alternative @relation(fields: [alternativeId], references: [id])
+    isCorrect     Boolean
+    answeredAt    DateTime
+
+    @@map("answers")
+}
