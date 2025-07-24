@@ -1,0 +1,187 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { QuizService } from './quiz.service';
+import { ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
+import {
+  CreateQuizDto,
+  UpdateQuizDto,
+  CreateQuestionDto,
+  UpdateQuestionDto,
+  CreateAlternativeDto,
+  UpdateAlternativeDto,
+} from './dtos';
+
+function validateAlternatives(alternatives: any[]) {
+  if (!Array.isArray(alternatives) || alternatives.length !== 4) {
+    throw new BadRequestException(
+      'Cada pergunta deve ter exatamente 4 alternativas.',
+    );
+  }
+  const correctCount = alternatives.filter((a) => a.isCorrect).length;
+  if (correctCount !== 1) {
+    throw new BadRequestException(
+      'Exatamente uma alternativa deve ser correta.',
+    );
+  }
+}
+
+@ApiTags('quizzes')
+@Controller('quizzes')
+export class QuizController {
+  constructor(private readonly quizService: QuizService) {}
+
+  @Post()
+  @ApiBody({ type: CreateQuizDto })
+  @ApiResponse({ status: 201, description: 'Quiz criado com sucesso.' })
+  createQuiz(@Body() data: CreateQuizDto) {
+    if (data.questions) {
+      data.questions.forEach((q) => {
+        validateAlternatives(q.alternatives);
+      });
+    }
+    return this.quizService.createQuiz(data);
+  }
+
+  @Get()
+  @ApiResponse({ status: 200, description: 'Lista todos os quizzes.' })
+  findAllQuizzes() {
+    return this.quizService.findAllQuizzes();
+  }
+
+  @Get(':id')
+  @ApiResponse({ status: 200, description: 'Retorna um quiz pelo ID.' })
+  findQuizById(@Param('id') id: string) {
+    return this.quizService.findQuizById(id);
+  }
+
+  @Put(':id')
+  @ApiBody({ type: UpdateQuizDto })
+  @ApiResponse({ status: 200, description: 'Quiz atualizado com sucesso.' })
+  updateQuiz(@Param('id') id: string, @Body() data: UpdateQuizDto) {
+    return this.quizService.updateQuiz(id, data);
+  }
+
+  @Delete(':id')
+  @ApiResponse({ status: 200, description: 'Quiz deletado com sucesso.' })
+  deleteQuiz(@Param('id') id: string) {
+    return this.quizService.deleteQuiz(id);
+  }
+
+  @Post(':quizId/questions')
+  @ApiBody({ type: CreateQuestionDto })
+  @ApiResponse({ status: 201, description: 'Pergunta adicionada ao quiz.' })
+  async addQuestion(
+    @Param('quizId') quizId: string,
+    @Body() data: CreateQuestionDto,
+  ) {
+    validateAlternatives(data.alternatives);
+    return this.quizService.addQuestion(quizId, data);
+  }
+
+  @Put('questions/:questionId')
+  @ApiBody({ type: UpdateQuestionDto })
+  @ApiResponse({ status: 200, description: 'Pergunta atualizada.' })
+  async updateQuestion(
+    @Param('questionId') questionId: string,
+    @Body() data: UpdateQuestionDto,
+  ) {
+    if (data.alternatives) {
+      validateAlternatives(data.alternatives);
+    }
+    return this.quizService.updateQuestion(questionId, data);
+  }
+
+  @Delete('questions/:questionId')
+  @ApiResponse({ status: 200, description: 'Pergunta deletada.' })
+  deleteQuestion(@Param('questionId') questionId: string) {
+    return this.quizService.deleteQuestion(questionId);
+  }
+
+  @Post('questions/:questionId/alternatives')
+  @ApiBody({ type: CreateAlternativeDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Alternativa adicionada à pergunta.',
+  })
+  async addAlternative(
+    @Param('questionId') questionId: string,
+    @Body() data: CreateAlternativeDto,
+  ) {
+    const alternatives =
+      await this.quizService.getAlternativesByQuestion(questionId);
+    if (alternatives.length >= 4) {
+      throw new BadRequestException(
+        'Cada pergunta deve ter exatamente 4 alternativas.',
+      );
+    }
+    const correctCount =
+      alternatives.filter((a) => a.isCorrect).length + (data.isCorrect ? 1 : 0);
+    if (correctCount > 1) {
+      throw new BadRequestException(
+        'Exatamente uma alternativa deve ser correta.',
+      );
+    }
+    if (alternatives.length === 3 && !data.isCorrect && correctCount !== 1) {
+      throw new BadRequestException(
+        'Exatamente uma alternativa deve ser correta.',
+      );
+    }
+    return this.quizService.addAlternative(questionId, data);
+  }
+
+  @Put('alternatives/:alternativeId')
+  @ApiBody({ type: UpdateAlternativeDto })
+  @ApiResponse({ status: 200, description: 'Alternativa atualizada.' })
+  async updateAlternative(
+    @Param('alternativeId') alternativeId: string,
+    @Body() data: UpdateAlternativeDto,
+  ) {
+    const alternative =
+      await this.quizService.getAlternativeById(alternativeId);
+    if (!alternative) {
+      throw new NotFoundException('Alternativa não encontrada');
+    }
+    const { questionId } = alternative;
+    const alternatives =
+      await this.quizService.getAlternativesByQuestion(questionId);
+    let correctCount = alternatives.filter((a) => a.isCorrect).length;
+    const current = alternatives.find((a) => a.id === alternativeId);
+    if (current && current.isCorrect !== data.isCorrect) {
+      correctCount += data.isCorrect ? 1 : -1;
+    }
+    if (correctCount !== 1) {
+      throw new BadRequestException(
+        'Exatamente uma alternativa deve ser correta.',
+      );
+    }
+    return this.quizService.updateAlternative(alternativeId, data);
+  }
+
+  @Delete('alternatives/:alternativeId')
+  @ApiResponse({ status: 200, description: 'Alternativa deletada.' })
+  async deleteAlternative(@Param('alternativeId') alternativeId: string) {
+    const alternative =
+      await this.quizService.getAlternativeById(alternativeId);
+    if (!alternative) {
+      throw new NotFoundException('Alternativa não encontrada');
+    }
+    const { questionId } = alternative;
+    const alternatives =
+      await this.quizService.getAlternativesByQuestion(questionId);
+    if (alternatives.length <= 4) {
+      throw new BadRequestException(
+        'Cada pergunta deve ter exatamente 4 alternativas.',
+      );
+    }
+    return this.quizService.deleteAlternative(alternativeId);
+  }
+}
