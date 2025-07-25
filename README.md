@@ -11,6 +11,10 @@ cd kahoot-offline
 ```
 
 ```bash
+docker compose up -d
+```
+
+```bash
 npm i
 ```
 
