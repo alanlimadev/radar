@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { QuizRepository } from './quiz.repository';
 
 @Injectable()
@@ -33,13 +37,34 @@ export class QuizService {
   }
 
   async findQuizById(id: string) {
-    return this.repo.quiz.findUnique({
+    const quiz = await this.repo.quiz.findUnique({
       where: { id },
       include: { questions: { include: { alternatives: true } } },
     });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz não encontrado');
+    }
+
+    return quiz;
   }
 
-  async updateQuiz(id: string, data: any) {
+  async updateQuiz(id: string, data: any, userId: string) {
+    const quiz = await this.repo.quiz.findUnique({
+      where: { id },
+      select: { createdBy: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz não encontrado');
+    }
+
+    if (quiz.createdBy !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para editar este quiz',
+      );
+    }
+
     return this.repo.quiz.update({
       where: { id },
       data: {
@@ -49,7 +74,22 @@ export class QuizService {
     });
   }
 
-  async deleteQuiz(id: string) {
+  async deleteQuiz(id: string, userId: string) {
+    const quiz = await this.repo.quiz.findUnique({
+      where: { id },
+      select: { createdBy: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz não encontrado');
+    }
+
+    if (quiz.createdBy !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para deletar este quiz',
+      );
+    }
+
     return this.repo.quiz.delete({ where: { id } });
   }
 
