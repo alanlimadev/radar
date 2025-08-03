@@ -79,11 +79,6 @@ export class CreateQuizDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ example: 'id-do-usuario' })
-  @IsString()
-  @IsNotEmpty()
-  createdBy: string;
-
   @ApiProperty({ type: [CreateQuestionDto], required: false })
   @IsOptional()
   @IsArray()
