@@ -3,11 +3,11 @@
 ## Como rodar localmente
 
 ```bash
-git clone https://github.com/alanlimadev/kahoot-offline.git
+git clone https://github.com/alanlimadev/kahoot-offline-api.git
 ```
 
 ```bash
-cd kahoot-offline
+cd kahoot-offline-api
 ```
 
 ```bash
