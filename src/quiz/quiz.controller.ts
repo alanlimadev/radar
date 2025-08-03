@@ -8,9 +8,12 @@ import {
   Param,
   BadRequestException,
   NotFoundException,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { QuizService } from './quiz.service';
-import { ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   CreateQuizDto,
   UpdateQuizDto,
@@ -35,6 +38,8 @@ function validateAlternatives(alternatives: any[]) {
 }
 
 @ApiTags('quizzes')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('quizzes')
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
@@ -42,13 +47,16 @@ export class QuizController {
   @Post()
   @ApiBody({ type: CreateQuizDto })
   @ApiResponse({ status: 201, description: 'Quiz criado com sucesso.' })
-  createQuiz(@Body() data: CreateQuizDto) {
+  createQuiz(@Body() data: CreateQuizDto, @Request() req) {
     if (data.questions) {
       data.questions.forEach((q) => {
         validateAlternatives(q.alternatives);
       });
     }
-    return this.quizService.createQuiz(data);
+    return this.quizService.createQuiz({
+      ...data,
+      createdBy: req.user.id,
+    });
   }
 
   @Get()
@@ -66,14 +74,18 @@ export class QuizController {
   @Put(':id')
   @ApiBody({ type: UpdateQuizDto })
   @ApiResponse({ status: 200, description: 'Quiz atualizado com sucesso.' })
-  updateQuiz(@Param('id') id: string, @Body() data: UpdateQuizDto) {
-    return this.quizService.updateQuiz(id, data);
+  updateQuiz(
+    @Param('id') id: string,
+    @Body() data: UpdateQuizDto,
+    @Request() req,
+  ) {
+    return this.quizService.updateQuiz(id, data, req.user.id);
   }
 
   @Delete(':id')
   @ApiResponse({ status: 200, description: 'Quiz deletado com sucesso.' })
-  deleteQuiz(@Param('id') id: string) {
-    return this.quizService.deleteQuiz(id);
+  deleteQuiz(@Param('id') id: string, @Request() req) {
+    return this.quizService.deleteQuiz(id, req.user.id);
   }
 
   @Post(':quizId/questions')
