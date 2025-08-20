@@ -17,8 +17,40 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Kahoot Offline API')
-    .setDescription('API para gerenciamento de quizzes')
+    .setDescription(
+      `
+      API para gerenciamento de quizzes e sessões de jogo em tempo real.
+      
+      ## Funcionalidades Principais:
+      - **Usuários**: Cadastro e autenticação de professores
+      - **Quizzes**: Criação e gerenciamento de quizzes com perguntas
+      - **Game Sessions**: Sessões de jogo em tempo real para alunos
+      
+      ## WebSocket (Comunicação em Tempo Real):
+      Esta API utiliza WebSocket (Socket.IO) na porta **3333** para comunicação em tempo real durante as sessões de jogo.
+      
+      **URL de conexão**: \`ws://localhost:3333\`
+      
+      ### Eventos principais:
+      - \`joinSession\`: Conectar jogador à sessão
+      - \`startQuiz\`: Iniciar quiz (professor)
+      - \`submitAnswer\`: Enviar resposta (jogador)
+      - \`nextQuestion\`: Próxima pergunta (professor)
+      - \`getScores\`: Buscar placar atual
+      
+      ### Como usar:
+      1. Crie uma sessão via REST API
+      2. Conecte jogadores via WebSocket
+      3. Inicie o quiz e gerencie em tempo real
+      
+      Consulte a documentação completa no código-fonte em \`websocket-events.doc.ts\`
+    `,
+    )
     .setVersion('1.0')
+    .addTag('Auth', 'Endpoints de autenticação e autorização')
+    .addTag('Users', 'Gerenciamento de usuários (professores)')
+    .addTag('Quiz', 'Criação e gerenciamento de quizzes')
+    .addTag('Game Session', 'Sessões de jogo em tempo real')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
