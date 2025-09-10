@@ -20,7 +20,7 @@ export class GameSessionGateway {
   // Evento para conectar um player à sessão
   @SubscribeMessage('joinSession')
   async handleJoinSession(
-    @MessageBody() data: { sessionId: string; playerName: string },
+    @MessageBody() data: { sessionId: number; playerName: string },
     @ConnectedSocket() client: Socket,
   ) {
     // Cria o player na sessão
@@ -37,15 +37,15 @@ export class GameSessionGateway {
     };
 
     // Adiciona o socket à sala da sessão
-    await client.join(data.sessionId);
+    await client.join(data.sessionId.toString());
     // Notifica todos os clientes da sala
-    this.server.to(data.sessionId).emit('playerJoined', player);
+    this.server.to(data.sessionId.toString()).emit('playerJoined', player);
     return player;
   }
 
   // Evento para iniciar o quiz
   @SubscribeMessage('startQuiz')
-  async handleStartQuiz(@MessageBody() data: { sessionId: string }) {
+  async handleStartQuiz(@MessageBody() data: { sessionId: number }) {
     // Busca a primeira pergunta do quiz
     const sessionWithQuiz =
       await this.gameSessionService.getSessionWithQuestions(data.sessionId);
@@ -54,7 +54,7 @@ export class GameSessionGateway {
       const firstQuestion = sessionWithQuiz.quiz.questions[0];
 
       // Envia a primeira pergunta para todos os players
-      this.server.to(data.sessionId).emit('quizStarted', {
+      this.server.to(data.sessionId.toString()).emit('quizStarted', {
         question: {
           id: firstQuestion.id,
           text: firstQuestion.text,
@@ -112,7 +112,7 @@ export class GameSessionGateway {
   // Evento para mostrar próxima pergunta (enviado pelo professor)
   @SubscribeMessage('nextQuestion')
   async handleNextQuestion(
-    @MessageBody() data: { sessionId: string; currentQuestionIndex: number },
+    @MessageBody() data: { sessionId: number; currentQuestionIndex: number },
   ) {
     const sessionWithQuiz =
       await this.gameSessionService.getSessionWithQuestions(data.sessionId);
@@ -125,7 +125,7 @@ export class GameSessionGateway {
       const nextQuestion = sessionWithQuiz.quiz.questions[nextQuestionIndex];
 
       // Envia a próxima pergunta para todos os players
-      this.server.to(data.sessionId).emit('nextQuestion', {
+      this.server.to(data.sessionId.toString()).emit('nextQuestion', {
         question: {
           id: nextQuestion.id,
           text: nextQuestion.text,
@@ -142,7 +142,9 @@ export class GameSessionGateway {
       const finalScores = await this.gameSessionService.getSessionScores(
         data.sessionId,
       );
-      this.server.to(data.sessionId).emit('quizEnded', { scores: finalScores });
+      this.server
+        .to(data.sessionId.toString())
+        .emit('quizEnded', { scores: finalScores });
 
       // Marca a sessão como finalizada
       await this.gameSessionService.finishSession(data.sessionId);
@@ -167,7 +169,7 @@ export class GameSessionGateway {
     const scores = await this.gameSessionService.getSessionScores(sessionId);
 
     // Envia o placar para todos os players da sessão
-    this.server.to(sessionId).emit('scoresUpdate', { scores });
+    this.server.to(sessionId.toString()).emit('scoresUpdate', { scores });
 
     return { scores };
   }

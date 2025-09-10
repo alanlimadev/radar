@@ -107,7 +107,7 @@ export class GameSessionController {
   })
   @Get(':id')
   async getSession(@Param('id') sessionId: string) {
-    return this.gameSessionService.getSessionWithQuestions(sessionId);
+    return this.gameSessionService.getSessionWithQuestions(parseInt(sessionId));
   }
 
   @ApiOperation({
@@ -144,8 +144,9 @@ export class GameSessionController {
   })
   @Get(':id/players')
   async getSessionPlayers(@Param('id') sessionId: string) {
-    const session =
-      await this.gameSessionService.getSessionWithQuestions(sessionId);
+    const session = await this.gameSessionService.getSessionWithQuestions(
+      parseInt(sessionId),
+    );
     return session?.players || [];
   }
 
@@ -157,7 +158,7 @@ export class GameSessionController {
   @ApiParam({
     name: 'id',
     description: 'ID da sessão de jogo',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    example: '1',
   })
   @ApiResponse({
     status: 200,
@@ -185,7 +186,7 @@ export class GameSessionController {
   })
   @Get(':id/scores')
   async getSessionScores(@Param('id') sessionId: string) {
-    return this.gameSessionService.getSessionScores(sessionId);
+    return this.gameSessionService.getSessionScores(parseInt(sessionId));
   }
 
   @ApiOperation({
@@ -196,14 +197,14 @@ export class GameSessionController {
   @ApiParam({
     name: 'id',
     description: 'ID da sessão de jogo',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    example: '1',
   })
   @ApiResponse({
     status: 200,
     description: 'Sessão finalizada com sucesso',
     schema: {
       example: {
-        id: '550e8400-e29b-41d4-a716-446655440000',
+        id: 1,
         quizId: '550e8400-e29b-41d4-a716-446655440001',
         status: 'FINISHED',
         startedAt: '2023-08-20T16:00:00.000Z',
@@ -217,6 +218,6 @@ export class GameSessionController {
   })
   @Put(':id/finish')
   async finishSession(@Param('id') sessionId: string) {
-    return this.gameSessionService.finishSession(sessionId);
+    return this.gameSessionService.finishSession(parseInt(sessionId));
   }
 }

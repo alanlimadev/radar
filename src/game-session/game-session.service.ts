@@ -16,7 +16,7 @@ export class GameSessionService {
     });
   }
 
-  async addPlayerToSession(sessionId: string, playerName: string) {
+  async addPlayerToSession(sessionId: number, playerName: string) {
     // Cria o player vinculado à sessão
     return this.prisma.player.create({
       data: {
@@ -26,7 +26,7 @@ export class GameSessionService {
     });
   }
 
-  async getSessionWithQuestions(sessionId: string) {
+  async getSessionWithQuestions(sessionId: number) {
     return this.prisma.gameSession.findUnique({
       where: { id: sessionId },
       include: {
@@ -69,7 +69,7 @@ export class GameSessionService {
     });
   }
 
-  async getSessionScores(sessionId: string) {
+  async getSessionScores(sessionId: number) {
     // Busca todos os players da sessão com suas respostas
     const players = await this.prisma.player.findMany({
       where: { gameSessionId: sessionId },
@@ -91,7 +91,7 @@ export class GameSessionService {
       .sort((a, b) => b.score - a.score);
   }
 
-  async finishSession(sessionId: string) {
+  async finishSession(sessionId: number) {
     return this.prisma.gameSession.update({
       where: { id: sessionId },
       data: {

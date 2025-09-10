@@ -16,13 +16,11 @@ export class CreateGameSessionDto {
 export class JoinSessionDto {
   @ApiProperty({
     description: 'ID da sessão de jogo para conectar',
-    example: '550e8400-e29b-41d4-a716-446655440001',
-    format: 'uuid',
+    example: 1,
+    type: Number,
   })
   @IsNotEmpty()
-  @IsString()
-  @IsUUID()
-  sessionId: string;
+  sessionId: number;
 
   @ApiProperty({
     description: 'Nome do jogador que está se conectando',

@@ -57,7 +57,7 @@ model Alternative {
 }
 
 model GameSession {
-    id        String            @id @default(uuid())
+    id        Int               @id @default(autoincrement())
     quizId    String
     quiz      Quiz              @relation(fields: [quizId], references: [id])
     status    GameSessionStatus
@@ -71,7 +71,7 @@ model GameSession {
 model Player {
     id            String      @id @default(uuid())
     name          String
-    gameSessionId String
+    gameSessionId Int
     gameSession   GameSession @relation(fields: [gameSessionId], references: [id])
     answers       Answer[]
 
