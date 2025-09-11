@@ -56,10 +56,6 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('swagger', app, document);
 
-  await app.listen(3333, '0.0.0.0');
-  console.log('🚀 Server running on http://0.0.0.0:3333');
-  console.log(
-    '📖 Swagger documentation available at http://localhost:3333/swagger',
-  );
+  await app.listen(3333, '192.168.137.1');
 }
 bootstrap().catch((error) => console.error('Error starting server:', error));
