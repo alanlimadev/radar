@@ -17,44 +17,55 @@ export class GameSessionGateway {
 
   constructor(private readonly gameSessionService: GameSessionService) {}
 
+  // Função utilitária para converter sessionId
+  private ensureSessionIdIsNumber(sessionId: number | string): number {
+    return typeof sessionId === 'string' ? parseInt(sessionId, 10) : sessionId;
+  }
+
   // Evento para conectar um player à sessão
   @SubscribeMessage('joinSession')
   async handleJoinSession(
-    @MessageBody() data: { sessionId: number; playerName: string },
+    @MessageBody() data: { sessionId: number | string; playerName: string },
     @ConnectedSocket() client: Socket,
   ) {
+    // Converte sessionId para number se vier como string
+    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
+
     // Cria o player na sessão
     const player = await this.gameSessionService.addPlayerToSession(
-      data.sessionId,
+      sessionId,
       data.playerName,
     );
 
     // Armazena informações do player no socket para uso futuro
     (client as any).data = {
-      sessionId: data.sessionId,
+      sessionId: sessionId,
       playerId: player.id,
       playerName: data.playerName,
     };
 
     // Adiciona o socket à sala da sessão
-    await client.join(data.sessionId.toString());
+    await client.join(sessionId.toString());
     // Notifica todos os clientes da sala
-    this.server.to(data.sessionId.toString()).emit('playerJoined', player);
+    this.server.to(sessionId.toString()).emit('playerJoined', player);
     return player;
   }
 
   // Evento para iniciar o quiz
   @SubscribeMessage('startQuiz')
-  async handleStartQuiz(@MessageBody() data: { sessionId: number }) {
+  async handleStartQuiz(@MessageBody() data: { sessionId: number | string }) {
+    // Converte sessionId para number se vier como string
+    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
+
     // Busca a primeira pergunta do quiz
     const sessionWithQuiz =
-      await this.gameSessionService.getSessionWithQuestions(data.sessionId);
+      await this.gameSessionService.getSessionWithQuestions(sessionId);
 
     if (sessionWithQuiz && sessionWithQuiz.quiz.questions.length > 0) {
       const firstQuestion = sessionWithQuiz.quiz.questions[0];
 
       // Envia a primeira pergunta para todos os players
-      this.server.to(data.sessionId.toString()).emit('quizStarted', {
+      this.server.to(sessionId.toString()).emit('quizStarted', {
         question: {
           id: firstQuestion.id,
           text: firstQuestion.text,
@@ -112,10 +123,17 @@ export class GameSessionGateway {
   // Evento para mostrar próxima pergunta (enviado pelo professor)
   @SubscribeMessage('nextQuestion')
   async handleNextQuestion(
-    @MessageBody() data: { sessionId: number; currentQuestionIndex: number },
+    @MessageBody()
+    data: {
+      sessionId: number | string;
+      currentQuestionIndex: number;
+    },
   ) {
+    // Converte sessionId para number se vier como string
+    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
+
     const sessionWithQuiz =
-      await this.gameSessionService.getSessionWithQuestions(data.sessionId);
+      await this.gameSessionService.getSessionWithQuestions(sessionId);
 
     if (
       sessionWithQuiz &&
@@ -125,7 +143,7 @@ export class GameSessionGateway {
       const nextQuestion = sessionWithQuiz.quiz.questions[nextQuestionIndex];
 
       // Envia a próxima pergunta para todos os players
-      this.server.to(data.sessionId.toString()).emit('nextQuestion', {
+      this.server.to(sessionId.toString()).emit('nextQuestion', {
         question: {
           id: nextQuestion.id,
           text: nextQuestion.text,
@@ -139,15 +157,14 @@ export class GameSessionGateway {
       });
     } else {
       // Quiz terminou - envia resultado final
-      const finalScores = await this.gameSessionService.getSessionScores(
-        data.sessionId,
-      );
+      const finalScores =
+        await this.gameSessionService.getSessionScores(sessionId);
       this.server
-        .to(data.sessionId.toString())
+        .to(sessionId.toString())
         .emit('quizEnded', { scores: finalScores });
 
       // Marca a sessão como finalizada
-      await this.gameSessionService.finishSession(data.sessionId);
+      await this.gameSessionService.finishSession(sessionId);
     }
 
     return { success: true };
