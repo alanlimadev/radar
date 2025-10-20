@@ -3,9 +3,42 @@ services:
     image: postgres
     container_name: postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 12345678
-      POSTGRES_DB: kahootdb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - '5432:5432'
-  
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U docker -d nestapi']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api
+    ports:
+      - '${PORT}:${PORT}'
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: ${PORT}
+      NODE_ENV: ${NODE_ENV}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - app-network
+    command: sh -c "npx prisma migrate deploy && npm run start:prod"
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
