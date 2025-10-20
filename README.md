@@ -1,6 +1,6 @@
 # Backend Kahoot Offline
 
-## Como rodar localmente
+## Como rodar o projeto
 
 ```bash
 git clone https://github.com/alanlimadev/kahoot-offline-api.git
@@ -11,27 +11,40 @@ cd kahoot-offline-api
 ```
 
 ```bash
-docker compose up -d
+# Crie um arquivo .env na raiz do projeto com as variáveis abaixo:
+POSTGRES_DB= "kahootdb"
+POSTGRES_USER="admin"
+POSTGRES_PASSWORD="12345678"
+
+DATABASE_URL="postgresql://admin:12345678@postgresql:5432/kahootdb?schema=public"
+PORT=3333
+NODE_ENV=production
+
+JWT_SECRET="sfbslmvefyiBDHLDIjlfoefwmkjkejrgofsfsjfsfnsjfgnusfjownfjbjkfnsjfwu3hifnjcbxbcnxcvmmwmfsvskvjnfuyqgyqdfhUDSHFYWYVVBI"
 ```
 
 ```bash
-npm i
-```
-
-```bash
-npx prisma migrate dev
-```
-
-```bash
-npm run start:dev
+# Suba os containers (API + Banco de Dados):
+docker compose up --build -d
 ```
 
 ## Documentação
 
-http://localhost:3333/swagger
+[http://localhost:3333/swagger](http://localhost:3333/swagger)
 
-## Variáveis de Ambiente
+## Comandos úteis
 
-Para rodar esse projeto, você vai precisar adicionar as seguintes variáveis de ambiente no seu .env
+```bash
+# Parar os containers:
+docker compose down
+```
 
-`DATABASE_URL="postgresql://admin:12345678@localhost:5432/kahootdb?schema=public"`
+```bash
+# Ver logs em tempo real:
+docker compose logs -f
+```
+
+```bash
+# Recriar os containers:
+docker compose up --build -d
+```
