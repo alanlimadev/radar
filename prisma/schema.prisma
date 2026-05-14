@@ -12,14 +12,15 @@ enum GameSessionStatus {
     FINISHED
 }
 
-model User {
-    id           String @id @default(uuid())
+model Host {
+    id           String        @id @default(uuid())
     name         String
-    email        String @unique
+    email        String        @unique
     passwordHash String
-    quizzes      Quiz[] @relation("UserQuizzes")
+    quizzes      Quiz[]        @relation("HostQuizzes")
+    sessions     GameSession[]
 
-    @@map("users")
+    @@map("hosts")
 }
 
 model Quiz {
@@ -27,7 +28,7 @@ model Quiz {
     title       String
     description String?
     createdBy   String
-    creator     User          @relation("UserQuizzes", fields: [createdBy], references: [id])
+    creator     Host          @relation("HostQuizzes", fields: [createdBy], references: [id])
     questions   Question[]
     sessions    GameSession[]
 
@@ -37,10 +38,11 @@ model Quiz {
 model Question {
     id           String        @id @default(uuid())
     text         String
+    order        Int
     quizId       String
     quiz         Quiz          @relation(fields: [quizId], references: [id])
     alternatives Alternative[]
-    Answer       Answer[]
+    answers      Answer[]
 
     @@map("questions")
 }
@@ -51,7 +53,7 @@ model Alternative {
     isCorrect  Boolean
     questionId String
     question   Question @relation(fields: [questionId], references: [id])
-    Answer     Answer[]
+    answers    Answer[]
 
     @@map("alternatives")
 }
@@ -60,6 +62,8 @@ model GameSession {
     id        Int               @id @default(autoincrement())
     quizId    String
     quiz      Quiz              @relation(fields: [quizId], references: [id])
+    hostId    String
+    host      Host              @relation(fields: [hostId], references: [id])
     status    GameSessionStatus
     startedAt DateTime
     endedAt   DateTime?
