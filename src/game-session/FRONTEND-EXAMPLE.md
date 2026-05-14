@@ -84,7 +84,7 @@ export const useGameSession = () => {
   };
 
   const startQuiz = (sessionId) => {
-    // Professor ainda precisa informar sessionId (não está conectado como player)
+    // Host ainda precisa informar sessionId (não está conectado como player)
     socket.emit('startQuiz', { sessionId });
   };
 
@@ -160,7 +160,7 @@ export const PlayerGame = ({ sessionId }) => {
     <div className="game-screen">
       {gameStatus === 'waiting' && (
         <div className="waiting">
-          <h3>⏳ Aguardando o professor iniciar...</h3>
+          <h3>⏳ Aguardando o host iniciar...</h3>
           <button onClick={handleShowScores}>Ver Placar</button>
         </div>
       )}
