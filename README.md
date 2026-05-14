@@ -1,4 +1,5 @@
-# Backend Kahoot Offline
+# RADAR: Framework para Aplicações Multiusuário de Baixa Latência
+O Radar é um framework de backend projetado para orquestrar dispositivos móveis em redes locais (WLAN) em ambientes com infraestrutura de rede limitada ou sem conectividade com a internet. Desenvolvido sobre o ecossistema NestJS, ele abstrai a complexidade de protocolos de rede e gerenciamento de estado, permitindo a criação de experiências colaborativas robustas e sincronizadas em tempo real.
 
 ## Como rodar o projeto
 
