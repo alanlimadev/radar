@@ -9,11 +9,11 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - app-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U docker -d nestapi']
+      test: ['CMD-SHELL', 'pg_isready -U admin -d radardb']
       interval: 10s
       timeout: 5s
       retries: 5
