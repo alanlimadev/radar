@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { QuizRepository } from './quiz.repository';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateQuizDto,
   UpdateQuizDto,
@@ -19,7 +20,10 @@ type CreateQuizInput = CreateQuizDto & { createdBy: string };
 
 @Injectable()
 export class QuizService {
-  constructor(private readonly repo: QuizRepository) {}
+  constructor(
+    private readonly repo: QuizRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async createQuiz(data: CreateQuizInput) {
     return this.repo.quiz.create({
@@ -118,19 +122,26 @@ export class QuizService {
       );
     }
 
-    try {
-      return await this.repo.quiz.delete({ where: { id } });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2003'
-      ) {
-        throw new ConflictException(
-          'Quiz possui sessões vinculadas e não pode ser deletado.',
-        );
-      }
-      throw e;
-    }
+    await this.prisma.$transaction([
+      this.prisma.answer.deleteMany({
+        where: { question: { quizId: id } },
+      }),
+      this.prisma.player.deleteMany({
+        where: { gameSession: { quizId: id } },
+      }),
+      this.prisma.gameSession.deleteMany({
+        where: { quizId: id },
+      }),
+      this.prisma.alternative.deleteMany({
+        where: { question: { quizId: id } },
+      }),
+      this.prisma.question.deleteMany({
+        where: { quizId: id },
+      }),
+      this.prisma.quiz.delete({
+        where: { id },
+      }),
+    ]);
   }
 
   async addQuestion(quizId: string, data: CreateQuestionDto) {
