@@ -3,11 +3,11 @@
 ## Como rodar o projeto
 
 ```bash
-git clone https://github.com/alanlimadev/kahoot-offline-api.git
+git clone https://github.com/alanlimadev/radar-tcc.git
 ```
 
 ```bash
-cd kahoot-offline-api
+cd radar-tcc
 ```
 
 ```bash
