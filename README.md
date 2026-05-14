@@ -13,11 +13,11 @@ cd radar-tcc
 
 ```bash
 # Crie um arquivo .env na raiz do projeto com as variáveis abaixo:
-POSTGRES_DB= "kahootdb"
+POSTGRES_DB="radardb"
 POSTGRES_USER="admin"
 POSTGRES_PASSWORD="12345678"
 
-DATABASE_URL="postgresql://admin:12345678@postgresql:5432/kahootdb?schema=public"
+DATABASE_URL="postgresql://admin:12345678@postgresql:5432/radardb?schema=public"
 PORT=3333
 NODE_ENV=production
 
