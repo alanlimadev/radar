@@ -9,11 +9,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Registrar um novo professor' })
+  @ApiOperation({ summary: 'Registrar um novo host' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
     status: 201,
-    description: 'Professor registrado com sucesso.',
+    description: 'Host registrado com sucesso.',
     type: AuthResponseDto,
   })
   @ApiResponse({
@@ -26,7 +26,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Fazer login como professor' })
+  @ApiOperation({ summary: 'Fazer login como host' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
     status: 200,

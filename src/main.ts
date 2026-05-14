@@ -22,9 +22,9 @@ async function bootstrap() {
       API para gerenciamento de quizzes e sessões de jogo em tempo real.
       
       ## Funcionalidades Principais:
-      - **Usuários**: Cadastro e autenticação de professores
+      - **Usuários**: Cadastro e autenticação de hosts
       - **Quizzes**: Criação e gerenciamento de quizzes com perguntas
-      - **Game Sessions**: Sessões de jogo em tempo real para alunos
+      - **Game Sessions**: Sessões de jogo em tempo real para players
       
       ## WebSocket (Comunicação em Tempo Real):
       Esta API utiliza WebSocket (Socket.IO) na porta **3333** para comunicação em tempo real durante as sessões de jogo.
@@ -33,9 +33,9 @@ async function bootstrap() {
       
       ### Eventos principais:
       - \`joinSession\`: Conectar jogador à sessão
-      - \`startQuiz\`: Iniciar quiz (professor)
+      - \`startQuiz\`: Iniciar quiz (host)
       - \`submitAnswer\`: Enviar resposta (jogador)
-      - \`nextQuestion\`: Próxima pergunta (professor)
+      - \`nextQuestion\`: Próxima pergunta (host)
       - \`getScores\`: Buscar placar atual
       
       ### Como usar:
@@ -48,7 +48,7 @@ async function bootstrap() {
     )
     .setVersion('1.0')
     .addTag('Auth', 'Endpoints de autenticação e autorização')
-    .addTag('Users', 'Gerenciamento de usuários (professores)')
+    .addTag('Users', 'Gerenciamento de usuários (hosts)')
     .addTag('Quiz', 'Criação e gerenciamento de quizzes')
     .addTag('Game Session', 'Sessões de jogo em tempo real')
     .build();

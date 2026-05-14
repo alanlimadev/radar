@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGameSessionDto } from './dtos';
 
@@ -6,10 +6,11 @@ import { CreateGameSessionDto } from './dtos';
 export class GameSessionService {
   constructor(private prisma: PrismaService) {}
 
-  async createSession(dto: CreateGameSessionDto) {
+  async createSession(dto: CreateGameSessionDto, hostId: string) {
     return this.prisma.gameSession.create({
       data: {
         quizId: dto.quizId,
+        hostId,
         status: 'IN_PROGRESS',
         startedAt: new Date(),
       },
@@ -37,7 +38,7 @@ export class GameSessionService {
                 alternatives: true,
               },
               orderBy: {
-                text: 'asc',
+                order: 'asc',
               },
             },
           },
@@ -52,18 +53,22 @@ export class GameSessionService {
     questionId: string,
     alternativeId: string,
   ) {
-    // Busca a alternativa para verificar se está correta
     const alternative = await this.prisma.alternative.findUnique({
       where: { id: alternativeId },
     });
 
-    // Cria a resposta do player
+    if (!alternative || alternative.questionId !== questionId) {
+      throw new BadRequestException(
+        'Alternativa inválida para esta pergunta.',
+      );
+    }
+
     return this.prisma.answer.create({
       data: {
         playerId,
         questionId,
         alternativeId,
-        isCorrect: alternative?.isCorrect || false,
+        isCorrect: alternative.isCorrect,
         answeredAt: new Date(),
       },
     });
@@ -89,6 +94,18 @@ export class GameSessionService {
         score: player.answers.length,
       }))
       .sort((a, b) => b.score - a.score);
+  }
+
+  async getSession(sessionId: number) {
+    return this.prisma.gameSession.findUnique({
+      where: { id: sessionId },
+    });
+  }
+
+  async getSessionPlayers(sessionId: number) {
+    return this.prisma.player.findMany({
+      where: { gameSessionId: sessionId },
+    });
   }
 
   async finishSession(sessionId: number) {

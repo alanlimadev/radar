@@ -16,7 +16,7 @@ export class AuthService {
   ) {}
 
   async register(data: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({
+    const existingUser = await this.prisma.host.findUnique({
       where: { email: data.email },
     });
 
@@ -26,7 +26,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
-    const user = await this.prisma.user.create({
+    const user = await this.prisma.host.create({
       data: {
         name: data.name,
         email: data.email,
@@ -49,7 +49,7 @@ export class AuthService {
   }
 
   async login(data: LoginDto) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.host.findUnique({
       where: { email: data.email },
     });
 
@@ -80,7 +80,7 @@ export class AuthService {
   }
 
   async validateUser(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.host.findUnique({
       where: { id: userId },
       select: {
         id: true,

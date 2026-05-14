@@ -2,11 +2,11 @@
 
 ## Visão Geral
 
-O módulo de Game Session permite criar sessões de jogo em tempo real baseadas em quizzes, similar ao Kahoot. Os professores podem criar sessões e os alunos se conectam via WebSocket para participar do jogo.
+O módulo de Game Session permite criar sessões de jogo em tempo real baseadas em quizzes, similar ao Kahoot. Os hosts podem criar sessões e os players se conectam via WebSocket para participar do jogo.
 
 ## Fluxo Básico de Uso
 
-### 1. Criar Sessão (Professor)
+### 1. Criar Sessão (Host)
 
 ```bash
 POST /game-session
@@ -47,10 +47,10 @@ socket.on('playerJoined', (player) => {
 });
 ```
 
-### 3. Iniciar Quiz (Professor)
+### 3. Iniciar Quiz (Host)
 
 ```javascript
-// Professor inicia o quiz
+// Host inicia o quiz
 socket.emit('startQuiz', {
   sessionId: '550e8400-e29b-41d4-a716-446655440000',
 });
@@ -73,10 +73,10 @@ socket.on('quizStarted', (data) => {
 });
 ```
 
-### 4. Responder Perguntas (Alunos) - SIMPLIFICADO ✅
+### 4. Responder Perguntas (Players) - SIMPLIFICADO ✅
 
 ```javascript
-// Aluno envia resposta (sem precisar passar sessionId/playerId!)
+// Player envia resposta (sem precisar passar sessionId/playerId!)
 socket.emit('submitAnswer', {
   questionId: '550e8400-e29b-41d4-a716-446655440002',
   alternativeId: '550e8400-e29b-41d4-a716-446655440003',
@@ -89,10 +89,10 @@ socket.on('answerSubmitted', (result) => {
 });
 ```
 
-### 5. Avançar Perguntas (Professor)
+### 5. Avançar Perguntas (Host)
 
 ```javascript
-// Professor avança para próxima pergunta
+// Host avança para próxima pergunta
 socket.emit('nextQuestion', {
   sessionId: '550e8400-e29b-41d4-a716-446655440000',
   currentQuestionIndex: 0,
@@ -157,7 +157,7 @@ Finaliza manualmente uma sessão de jogo.
 1. **Quiz deve existir** para criar uma sessão
 2. **Jogadores só podem se conectar** a sessões IN_PROGRESS
 3. **Respostas só são aceitas** para perguntas do quiz atual
-4. **Professor controla o fluxo** do jogo (iniciar, avançar perguntas)
+4. **Host controla o fluxo** do jogo (iniciar, avançar perguntas)
 5. **Placar é calculado** automaticamente baseado em respostas corretas
 
 ## Tratamento de Erros

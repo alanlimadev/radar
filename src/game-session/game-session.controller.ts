@@ -1,13 +1,25 @@
-import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Put,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { GameSessionService } from './game-session.service';
 import { CreateGameSessionDto } from './dtos';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('Game Session')
 @Controller('game-session')
@@ -17,7 +29,7 @@ export class GameSessionController {
   @ApiOperation({
     summary: 'Criar nova sessão de jogo',
     description:
-      'Cria uma nova sessão de jogo baseada em um quiz existente. O professor pode usar este endpoint para iniciar uma nova sessão que os alunos poderão se conectar.',
+      'Cria uma nova sessão de jogo baseada em um quiz existente. O host pode usar este endpoint para iniciar uma nova sessão que os players poderão se conectar.',
   })
   @ApiBody({
     type: CreateGameSessionDto,
@@ -44,9 +56,11 @@ export class GameSessionController {
     status: 404,
     description: 'Quiz não encontrado',
   })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Post()
-  async createSession(@Body() dto: CreateGameSessionDto) {
-    return this.gameSessionService.createSession(dto);
+  async createSession(@Body() dto: CreateGameSessionDto, @Request() req) {
+    return this.gameSessionService.createSession(dto, req.user.id);
   }
 
   @ApiOperation({
@@ -106,8 +120,8 @@ export class GameSessionController {
     description: 'Sessão não encontrada',
   })
   @Get(':id')
-  async getSession(@Param('id') sessionId: string) {
-    return this.gameSessionService.getSessionWithQuestions(parseInt(sessionId));
+  async getSession(@Param('id', ParseIntPipe) id: number) {
+    return this.gameSessionService.getSessionWithQuestions(id);
   }
 
   @ApiOperation({
@@ -143,11 +157,9 @@ export class GameSessionController {
     description: 'Sessão não encontrada',
   })
   @Get(':id/players')
-  async getSessionPlayers(@Param('id') sessionId: string) {
-    const session = await this.gameSessionService.getSessionWithQuestions(
-      parseInt(sessionId),
-    );
-    return session?.players || [];
+  async getSessionPlayers(@Param('id', ParseIntPipe) id: number) {
+    const players = await this.gameSessionService.getSessionPlayers(id);
+    return players;
   }
 
   @ApiOperation({
@@ -185,8 +197,8 @@ export class GameSessionController {
     description: 'Sessão não encontrada',
   })
   @Get(':id/scores')
-  async getSessionScores(@Param('id') sessionId: string) {
-    return this.gameSessionService.getSessionScores(parseInt(sessionId));
+  async getSessionScores(@Param('id', ParseIntPipe) id: number) {
+    return this.gameSessionService.getSessionScores(id);
   }
 
   @ApiOperation({
@@ -217,7 +229,7 @@ export class GameSessionController {
     description: 'Sessão não encontrada',
   })
   @Put(':id/finish')
-  async finishSession(@Param('id') sessionId: string) {
-    return this.gameSessionService.finishSession(parseInt(sessionId));
+  async finishSession(@Param('id', ParseIntPipe) id: number) {
+    return this.gameSessionService.finishSession(id);
   }
 }
