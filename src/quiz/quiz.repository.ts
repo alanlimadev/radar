@@ -1,11 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class QuizRepository {
-  private prisma = new PrismaClient();
+  constructor(private prisma: PrismaService) {}
 
-  quiz = this.prisma.quiz;
-  question = this.prisma.question;
-  alternative = this.prisma.alternative;
+  get quiz() {
+    return this.prisma.quiz;
+  }
+  get question() {
+    return this.prisma.question;
+  }
+  get alternative() {
+    return this.prisma.alternative;
+  }
 }
