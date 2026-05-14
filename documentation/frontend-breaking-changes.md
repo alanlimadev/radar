@@ -197,8 +197,8 @@ if (response.status === 409) {
 | Evento | Payload | Descrição |
 |---|---|---|
 | `joinAsHost` | `{ sessionId }` | Conectar à sessão como host |
-| `startQuiz` | `{ sessionId }` | Iniciar o quiz |
-| `nextQuestion` | `{ sessionId, currentQuestionIndex }` | Avançar para próxima pergunta |
+| `startQuiz` | _(nenhum)_ | Iniciar o quiz — sessionId vem do joinAsHost |
+| `nextQuestion` | _(nenhum)_ | Avançar pergunta — índice controlado pelo servidor |
 | `getScores` | _(nenhum)_ | Solicitar placar atual |
 
 ### Eventos que o PLAYER emite
@@ -213,6 +213,7 @@ if (response.status === 409) {
 |---|---|
 | `existingPlayers` | Lista completa de players ao conectar (host e player recebem) |
 | `playerJoined` | Novo player entrou (recebido pelos já conectados) |
+| `playerLeft` | Player desconectou — `{ playerId, playerName }` |
 | `quizStarted` | Quiz iniciado, contém a primeira pergunta |
 | `nextQuestion` | Próxima pergunta |
 | `quizEnded` | Quiz finalizado, contém o ranking final |
