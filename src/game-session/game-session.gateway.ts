@@ -17,54 +17,84 @@ export class GameSessionGateway {
 
   constructor(private readonly gameSessionService: GameSessionService) {}
 
-  // Função utilitária para converter sessionId
   private ensureSessionIdIsNumber(sessionId: number | string): number {
     return typeof sessionId === 'string' ? parseInt(sessionId, 10) : sessionId;
   }
 
-  // Evento para conectar um player à sessão
+  @SubscribeMessage('joinAsHost')
+  async handleJoinAsHost(
+    @MessageBody() data: { sessionId: number | string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
+
+    const session = await this.gameSessionService.getSession(sessionId);
+    if (!session) {
+      client.emit('error', { message: 'Sessão não encontrada' });
+      return { success: false };
+    }
+
+    client.data = { sessionId, isHost: true };
+    await client.join(sessionId.toString());
+
+    const players = await this.gameSessionService.getSessionPlayers(sessionId);
+    client.emit('existingPlayers', players);
+
+    return { success: true };
+  }
+
   @SubscribeMessage('joinSession')
   async handleJoinSession(
     @MessageBody() data: { sessionId: number | string; playerName: string },
     @ConnectedSocket() client: Socket,
   ) {
-    // Converte sessionId para number se vier como string
     const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
 
-    // Cria o player na sessão
+    const session = await this.gameSessionService.getSession(sessionId);
+    if (!session || session.status !== 'IN_PROGRESS') {
+      client.emit('error', { message: 'Sessão não está disponível para entrada' });
+      return { success: false };
+    }
+
     const player = await this.gameSessionService.addPlayerToSession(
       sessionId,
       data.playerName,
     );
 
-    // Armazena informações do player no socket para uso futuro
-    (client as any).data = {
-      sessionId: sessionId,
+    client.data = {
+      sessionId,
       playerId: player.id,
       playerName: data.playerName,
+      isHost: false,
     };
 
-    // Adiciona o socket à sala da sessão
     await client.join(sessionId.toString());
-    // Notifica todos os clientes da sala
-    this.server.to(sessionId.toString()).emit('playerJoined', player);
+
+    const existingPlayers =
+      await this.gameSessionService.getSessionPlayers(sessionId);
+    client.emit('existingPlayers', existingPlayers);
+
+    client.broadcast.to(sessionId.toString()).emit('playerJoined', player);
     return player;
   }
 
-  // Evento para iniciar o quiz
   @SubscribeMessage('startQuiz')
-  async handleStartQuiz(@MessageBody() data: { sessionId: number | string }) {
-    // Converte sessionId para number se vier como string
-    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
+  async handleStartQuiz(
+    @MessageBody() data: { sessionId: number | string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!client.data?.isHost) {
+      client.emit('error', { message: 'Apenas o host pode iniciar o quiz' });
+      return { success: false };
+    }
 
-    // Busca a primeira pergunta do quiz
+    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
     const sessionWithQuiz =
       await this.gameSessionService.getSessionWithQuestions(sessionId);
 
     if (sessionWithQuiz && sessionWithQuiz.quiz.questions.length > 0) {
       const firstQuestion = sessionWithQuiz.quiz.questions[0];
 
-      // Envia a primeira pergunta para todos os players
       this.server.to(sessionId.toString()).emit('quizStarted', {
         question: {
           id: firstQuestion.id,
@@ -82,7 +112,6 @@ export class GameSessionGateway {
     return { success: true };
   }
 
-  // Evento para enviar resposta
   @SubscribeMessage('submitAnswer')
   async handleSubmitAnswer(
     @MessageBody()
@@ -92,26 +121,21 @@ export class GameSessionGateway {
     },
     @ConnectedSocket() client: Socket,
   ) {
-    // Pega informações do socket (armazenadas no joinSession)
-    const clientData = (client as any).data;
-    const sessionId = clientData?.sessionId;
-    const playerId = clientData?.playerId;
+    const { sessionId, playerId, isHost } = client.data ?? {};
 
-    if (!sessionId || !playerId) {
+    if (!sessionId || !playerId || isHost) {
       client.emit('error', {
-        message: 'Player não está conectado à uma sessão',
+        message: 'Apenas players podem enviar respostas',
       });
       return { success: false };
     }
 
-    // Salva a resposta no banco
     const answer = await this.gameSessionService.submitAnswer(
       playerId,
       data.questionId,
       data.alternativeId,
     );
 
-    // Notifica que a resposta foi recebida
     client.emit('answerSubmitted', {
       success: true,
       isCorrect: answer.isCorrect,
@@ -120,7 +144,6 @@ export class GameSessionGateway {
     return { success: true };
   }
 
-  // Evento para mostrar próxima pergunta (enviado pelo professor)
   @SubscribeMessage('nextQuestion')
   async handleNextQuestion(
     @MessageBody()
@@ -128,10 +151,14 @@ export class GameSessionGateway {
       sessionId: number | string;
       currentQuestionIndex: number;
     },
+    @ConnectedSocket() client: Socket,
   ) {
-    // Converte sessionId para number se vier como string
-    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
+    if (!client.data?.isHost) {
+      client.emit('error', { message: 'Apenas o host pode avançar as perguntas' });
+      return { success: false };
+    }
 
+    const sessionId = this.ensureSessionIdIsNumber(data.sessionId);
     const sessionWithQuiz =
       await this.gameSessionService.getSessionWithQuestions(sessionId);
 
@@ -142,7 +169,6 @@ export class GameSessionGateway {
       const nextQuestionIndex = data.currentQuestionIndex + 1;
       const nextQuestion = sessionWithQuiz.quiz.questions[nextQuestionIndex];
 
-      // Envia a próxima pergunta para todos os players
       this.server.to(sessionId.toString()).emit('nextQuestion', {
         question: {
           id: nextQuestion.id,
@@ -156,36 +182,30 @@ export class GameSessionGateway {
         totalQuestions: sessionWithQuiz.quiz.questions.length,
       });
     } else {
-      // Quiz terminou - envia resultado final
       const finalScores =
         await this.gameSessionService.getSessionScores(sessionId);
       this.server
         .to(sessionId.toString())
         .emit('quizEnded', { scores: finalScores });
 
-      // Marca a sessão como finalizada
       await this.gameSessionService.finishSession(sessionId);
     }
 
     return { success: true };
   }
 
-  // Evento para buscar placar atual
   @SubscribeMessage('getScores')
   async handleGetScores(@ConnectedSocket() client: Socket) {
-    const clientData = (client as any).data;
-    const sessionId = clientData?.sessionId;
+    const sessionId = client.data?.sessionId;
 
     if (!sessionId) {
       client.emit('error', {
-        message: 'Player não está conectado à uma sessão',
+        message: 'Não está conectado a uma sessão',
       });
       return { success: false };
     }
 
     const scores = await this.gameSessionService.getSessionScores(sessionId);
-
-    // Envia o placar para todos os players da sessão
     this.server.to(sessionId.toString()).emit('scoresUpdate', { scores });
 
     return { scores };
