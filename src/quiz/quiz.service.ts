@@ -2,14 +2,26 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { QuizRepository } from './quiz.repository';
+import {
+  CreateQuizDto,
+  UpdateQuizDto,
+  CreateQuestionDto,
+  UpdateQuestionDto,
+  CreateAlternativeDto,
+  UpdateAlternativeDto,
+} from './dtos';
+
+type CreateQuizInput = CreateQuizDto & { createdBy: string };
 
 @Injectable()
 export class QuizService {
   constructor(private readonly repo: QuizRepository) {}
 
-  async createQuiz(data: any) {
+  async createQuiz(data: CreateQuizInput) {
     return this.repo.quiz.create({
       data: {
         title: data.title,
@@ -17,8 +29,9 @@ export class QuizService {
         createdBy: data.createdBy,
         questions: data.questions
           ? {
-              create: data.questions.map((q) => ({
+              create: data.questions.map((q, index) => ({
                 text: q.text,
+                order: index,
                 alternatives: {
                   create: q.alternatives,
                 },
@@ -26,20 +39,35 @@ export class QuizService {
             }
           : undefined,
       },
-      include: { questions: { include: { alternatives: true } } },
+      include: {
+        questions: {
+          include: { alternatives: true },
+          orderBy: { order: 'asc' },
+        },
+      },
     });
   }
 
   async findAllQuizzes() {
     return this.repo.quiz.findMany({
-      include: { questions: { include: { alternatives: true } } },
+      include: {
+        questions: {
+          include: { alternatives: true },
+          orderBy: { order: 'asc' },
+        },
+      },
     });
   }
 
   async findQuizById(id: string) {
     const quiz = await this.repo.quiz.findUnique({
       where: { id },
-      include: { questions: { include: { alternatives: true } } },
+      include: {
+        questions: {
+          include: { alternatives: true },
+          orderBy: { order: 'asc' },
+        },
+      },
     });
 
     if (!quiz) {
@@ -49,7 +77,7 @@ export class QuizService {
     return quiz;
   }
 
-  async updateQuiz(id: string, data: any, userId: string) {
+  async updateQuiz(id: string, data: UpdateQuizDto, userId: string) {
     const quiz = await this.repo.quiz.findUnique({
       where: { id },
       select: { createdBy: true },
@@ -90,13 +118,34 @@ export class QuizService {
       );
     }
 
-    return this.repo.quiz.delete({ where: { id } });
+    try {
+      return await this.repo.quiz.delete({ where: { id } });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'Quiz possui sessões vinculadas e não pode ser deletado.',
+        );
+      }
+      throw e;
+    }
   }
 
-  async addQuestion(quizId: string, data: any) {
+  async addQuestion(quizId: string, data: CreateQuestionDto) {
+    const lastQuestion = await this.repo.question.findFirst({
+      where: { quizId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+
+    const nextOrder = lastQuestion ? lastQuestion.order + 1 : 0;
+
     return this.repo.question.create({
       data: {
         text: data.text,
+        order: nextOrder,
         quizId,
         alternatives: data.alternatives
           ? { create: data.alternatives }
@@ -106,7 +155,7 @@ export class QuizService {
     });
   }
 
-  async updateQuestion(questionId: string, data: any) {
+  async updateQuestion(questionId: string, data: UpdateQuestionDto) {
     return this.repo.question.update({
       where: { id: questionId },
       data: { text: data.text },
@@ -117,7 +166,7 @@ export class QuizService {
     return this.repo.question.delete({ where: { id: questionId } });
   }
 
-  async addAlternative(questionId: string, data: any) {
+  async addAlternative(questionId: string, data: CreateAlternativeDto) {
     return this.repo.alternative.create({
       data: {
         text: data.text,
@@ -127,7 +176,7 @@ export class QuizService {
     });
   }
 
-  async updateAlternative(alternativeId: string, data: any) {
+  async updateAlternative(alternativeId: string, data: UpdateAlternativeDto) {
     return this.repo.alternative.update({
       where: { id: alternativeId },
       data: {
