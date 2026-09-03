@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { GameSessionService } from './game-session.service';
 import { GameSessionController } from './game-session.controller';
 import { PrismaModule } from '../prisma/prisma.module';
-import { GameSessionGateway } from './game-session.gateway';
+import { QuizModule } from '../quiz/quiz.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, QuizModule],
   controllers: [GameSessionController],
-  providers: [GameSessionService, GameSessionGateway],
+  providers: [GameSessionService],
+  exports: [GameSessionService],
 })
 export class GameSessionModule {}

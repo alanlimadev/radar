@@ -1,120 +1,162 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGameSessionDto } from './dtos';
+import { RoomManagerService } from '../core/services/room-manager.service';
+import { QuizService } from '../quiz/quiz.service';
 
 @Injectable()
 export class GameSessionService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roomManager: RoomManagerService,
+    private readonly quizService: QuizService,
+  ) {}
 
   async createSession(dto: CreateGameSessionDto, hostId: string) {
-    return this.prisma.gameSession.create({
-      data: {
-        quizId: dto.quizId,
-        hostId,
-        status: 'IN_PROGRESS',
-        startedAt: new Date(),
-      },
-    });
-  }
-
-  async addPlayerToSession(sessionId: number, playerName: string) {
-    // Cria o player vinculado à sessão
-    return this.prisma.player.create({
-      data: {
-        name: playerName,
-        gameSessionId: sessionId,
-      },
-    });
-  }
-
-  async getSessionWithQuestions(sessionId: number) {
-    return this.prisma.gameSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        quiz: {
-          include: {
-            questions: {
-              include: {
-                alternatives: true,
-              },
-              orderBy: {
-                order: 'asc',
-              },
-            },
-          },
-        },
-        players: true,
-      },
-    });
-  }
-
-  async submitAnswer(
-    playerId: string,
-    questionId: string,
-    alternativeId: string,
-  ) {
-    const alternative = await this.prisma.alternative.findUnique({
-      where: { id: alternativeId },
-    });
-
-    if (!alternative || alternative.questionId !== questionId) {
-      throw new BadRequestException(
-        'Alternativa inválida para esta pergunta.',
-      );
+    const quiz = await this.quizService.findQuizById(dto.quizId);
+    if (!quiz) {
+      throw new NotFoundException('Quiz não encontrado');
     }
 
-    return this.prisma.answer.create({
+    // Inicializa a sala no RADAR Core Engine com as perguntas do Quiz
+    const room = await this.roomManager.createRoom(
+      hostId,
+      'quiz',
+      {
+        quizId: quiz.id,
+        title: quiz.title,
+        questions: quiz.questions.map((q) => ({
+          id: q.id,
+          text: q.text,
+          order: q.order,
+          alternatives: q.alternatives.map((a) => ({
+            id: a.id,
+            text: a.text,
+            isCorrect: a.isCorrect,
+          })),
+        })),
+      },
+    );
+
+    // Persiste a sala no banco genérico
+    await this.prisma.gameRoom.create({
       data: {
-        playerId,
-        questionId,
-        alternativeId,
-        isCorrect: alternative.isCorrect,
-        answeredAt: new Date(),
-      },
-    });
-  }
-
-  async getSessionScores(sessionId: number) {
-    // Busca todos os players da sessão com suas respostas
-    const players = await this.prisma.player.findMany({
-      where: { gameSessionId: sessionId },
-      include: {
-        answers: {
-          where: { isCorrect: true },
+        id: room.id,
+        code: room.code,
+        gameType: 'quiz',
+        hostId,
+        status: 'IN_PROGRESS',
+        config: {
+          quizId: quiz.id,
+          title: quiz.title,
         },
+        startedAt: room.createdAt,
       },
     });
 
-    // Calcula o score de cada player
-    return players
-      .map((player) => ({
-        playerId: player.id,
-        playerName: player.name,
-        correctAnswers: player.answers.length,
-        score: player.answers.length,
-      }))
-      .sort((a, b) => b.score - a.score);
+    return {
+      id: room.code,
+      code: room.code,
+      quizId: dto.quizId,
+      status: 'IN_PROGRESS',
+      startedAt: room.createdAt,
+      endedAt: null,
+    };
   }
 
-  async getSession(sessionId: number) {
-    return this.prisma.gameSession.findUnique({
-      where: { id: sessionId },
+  async getSessionWithQuestions(sessionId: string | number) {
+    const sessionStr = String(sessionId);
+    const room = this.roomManager.findRoom(sessionStr);
+
+    if (room) {
+      const quizConfig = room.config as any;
+      return {
+        id: room.code,
+        code: room.code,
+        quizId: quizConfig?.quizId,
+        status: room.status,
+        startedAt: room.createdAt,
+        endedAt: room.endedAt,
+        quiz: {
+          id: quizConfig?.quizId,
+          title: quizConfig?.title,
+          questions: quizConfig?.questions,
+        },
+        players: Array.from(room.players.values()),
+      };
+    }
+
+    const dbRoom = await this.prisma.gameRoom.findFirst({
+      where: { OR: [{ id: sessionStr }, { code: sessionStr }] },
+      include: { players: true },
+    });
+
+    if (!dbRoom) {
+      throw new NotFoundException('Sessão não encontrada');
+    }
+
+    return dbRoom;
+  }
+
+  async getSessionScores(sessionId: string | number) {
+    const room = this.roomManager.findRoom(String(sessionId));
+    if (room) {
+      return this.roomManager.getFinalResults(room.code);
+    }
+    return [];
+  }
+
+  async getSession(sessionId: string | number) {
+    const sessionStr = String(sessionId);
+    const room = this.roomManager.findRoom(sessionStr);
+    if (room) {
+      return {
+        id: room.code,
+        code: room.code,
+        status: room.status,
+        startedAt: room.createdAt,
+        endedAt: room.endedAt,
+      };
+    }
+
+    return this.prisma.gameRoom.findFirst({
+      where: { OR: [{ id: sessionStr }, { code: sessionStr }] },
     });
   }
 
-  async getSessionPlayers(sessionId: number) {
-    return this.prisma.player.findMany({
-      where: { gameSessionId: sessionId },
+  async getSessionPlayers(sessionId: string | number) {
+    const room = this.roomManager.findRoom(String(sessionId));
+    if (room) {
+      return Array.from(room.players.values()).map((p) => ({
+        id: p.id,
+        name: p.name,
+        score: p.score ?? 0,
+        gameSessionId: room.code,
+      }));
+    }
+
+    const dbPlayers = await this.prisma.roomPlayer.findMany({
+      where: { room: { code: String(sessionId) } },
     });
+
+    return dbPlayers;
   }
 
-  async finishSession(sessionId: number) {
-    return this.prisma.gameSession.update({
-      where: { id: sessionId },
+  async finishSession(sessionId: string | number) {
+    const sessionStr = String(sessionId);
+    const room = this.roomManager.findRoom(sessionStr);
+    if (room) {
+      await this.roomManager.finishRoom(room.code);
+    }
+
+    await this.prisma.gameRoom.updateMany({
+      where: { OR: [{ id: sessionStr }, { code: sessionStr }] },
       data: {
         status: 'FINISHED',
         endedAt: new Date(),
       },
     });
+
+    return { success: true };
   }
 }

@@ -7,30 +7,60 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-enum GameSessionStatus {
-    IN_PROGRESS
-    FINISHED
-}
+// ----------------------------------------------------
+// RADAR Core Framework Models (Generic & Decoupled)
+// ----------------------------------------------------
 
 model Host {
-    id           String        @id @default(uuid())
+    id           String     @id @default(uuid())
     name         String
-    email        String        @unique
+    email        String     @unique
     passwordHash String
-    quizzes      Quiz[]        @relation("HostQuizzes")
-    sessions     GameSession[]
+    quizzes      Quiz[]     @relation("HostQuizzes")
+    rooms        GameRoom[]
 
     @@map("hosts")
 }
 
+model GameRoom {
+    id        String       @id @default(uuid())
+    code      String       @unique
+    gameType  String
+    hostId    String
+    host      Host         @relation(fields: [hostId], references: [id])
+    status    String       @default("LOBBY") // LOBBY, IN_PROGRESS, FINISHED
+    config    Json         @default("{}")
+    results   Json?
+    startedAt DateTime     @default(now())
+    endedAt   DateTime?
+    players   RoomPlayer[]
+
+    @@map("game_rooms")
+}
+
+model RoomPlayer {
+    id       String   @id @default(uuid())
+    name     String
+    roomId   String
+    room     GameRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+    score    Int      @default(0)
+    metadata Json?
+    joinedAt DateTime @default(now())
+
+    @@map("room_players")
+}
+
+// ----------------------------------------------------
+// Module Quiz (Proof of Concept - Content Storage)
+// ----------------------------------------------------
+
 model Quiz {
-    id          String        @id @default(uuid())
+    id          String     @id @default(uuid())
     title       String
     description String?
     createdBy   String
-    creator     Host          @relation("HostQuizzes", fields: [createdBy], references: [id])
+    creator     Host       @relation("HostQuizzes", fields: [createdBy], references: [id])
     questions   Question[]
-    sessions    GameSession[]
 
     @@map("quizzes")
 }
@@ -40,9 +70,8 @@ model Question {
     text         String
     order        Int
     quizId       String
-    quiz         Quiz          @relation(fields: [quizId], references: [id])
+    quiz         Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
     alternatives Alternative[]
-    answers      Answer[]
 
     @@map("questions")
 }
@@ -52,46 +81,7 @@ model Alternative {
     text       String
     isCorrect  Boolean
     questionId String
-    question   Question @relation(fields: [questionId], references: [id])
-    answers    Answer[]
+    question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
     @@map("alternatives")
-}
-
-model GameSession {
-    id        Int               @id @default(autoincrement())
-    quizId    String
-    quiz      Quiz              @relation(fields: [quizId], references: [id])
-    hostId    String
-    host      Host              @relation(fields: [hostId], references: [id])
-    status    GameSessionStatus
-    startedAt DateTime
-    endedAt   DateTime?
-    players   Player[]
-
-    @@map("game_sessions")
-}
-
-model Player {
-    id            String      @id @default(uuid())
-    name          String
-    gameSessionId Int
-    gameSession   GameSession @relation(fields: [gameSessionId], references: [id])
-    answers       Answer[]
-
-    @@map("players")
-}
-
-model Answer {
-    id            String      @id @default(uuid())
-    playerId      String
-    player        Player      @relation(fields: [playerId], references: [id])
-    questionId    String
-    question      Question    @relation(fields: [questionId], references: [id])
-    alternativeId String
-    alternative   Alternative @relation(fields: [alternativeId], references: [id])
-    isCorrect     Boolean
-    answeredAt    DateTime
-
-    @@map("answers")
 }

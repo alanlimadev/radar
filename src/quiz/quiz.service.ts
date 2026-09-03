@@ -122,26 +122,9 @@ export class QuizService {
       );
     }
 
-    await this.prisma.$transaction([
-      this.prisma.answer.deleteMany({
-        where: { question: { quizId: id } },
-      }),
-      this.prisma.player.deleteMany({
-        where: { gameSession: { quizId: id } },
-      }),
-      this.prisma.gameSession.deleteMany({
-        where: { quizId: id },
-      }),
-      this.prisma.alternative.deleteMany({
-        where: { question: { quizId: id } },
-      }),
-      this.prisma.question.deleteMany({
-        where: { quizId: id },
-      }),
-      this.prisma.quiz.delete({
-        where: { id },
-      }),
-    ]);
+    await this.prisma.quiz.delete({
+      where: { id },
+    });
   }
 
   async addQuestion(quizId: string, data: CreateQuestionDto) {
