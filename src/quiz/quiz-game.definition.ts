@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  Optional,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   IGameDefinition,
   GameContext,
@@ -6,6 +11,7 @@ import {
 } from '../core/interfaces/game-definition.interface';
 import { GameAction, ActionResult } from '../core/interfaces/game-action.interface';
 import { Player } from '../core/interfaces/player.interface';
+import { QuizService } from './quiz.service';
 
 export interface QuizQuestion {
   id: string;
@@ -51,11 +57,46 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
   readonly minPlayers = 1;
   readonly maxPlayers = 200;
 
-  init(config: QuizConfig, _context: GameContext): QuizState {
+  constructor(
+    @Optional()
+    private readonly quizService?: QuizService,
+  ) {}
+
+  async init(config: QuizConfig, _context: GameContext): Promise<QuizState> {
+    let questions = config.questions;
+    let title = config.title;
+
+    if ((!questions || questions.length === 0) && config.quizId) {
+      if (!this.quizService) {
+        throw new Error('QuizService não disponível para carregar perguntas do quiz');
+      }
+
+      const quiz = await this.quizService.findQuizById(config.quizId);
+      if (!quiz) {
+        throw new NotFoundException(`Quiz "${config.quizId}" não encontrado`);
+      }
+
+      if (!quiz.questions || quiz.questions.length === 0) {
+        throw new BadRequestException('O quiz selecionado não possui perguntas configuradas');
+      }
+
+      title = quiz.title;
+      questions = quiz.questions.map((q) => ({
+        id: q.id,
+        text: q.text,
+        order: q.order,
+        alternatives: q.alternatives.map((a) => ({
+          id: a.id,
+          text: a.text,
+          isCorrect: a.isCorrect,
+        })),
+      }));
+    }
+
     return {
       quizId: config.quizId,
-      title: config.title || 'Quiz',
-      questions: config.questions || [],
+      title: title || 'Quiz',
+      questions: questions || [],
       currentQuestionIndex: 0,
       answers: new Map<string, PlayerAnswerRecord[]>(),
       playerScores: new Map<string, number>(),

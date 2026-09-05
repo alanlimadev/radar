@@ -32,7 +32,7 @@ export interface IGameDefinition<TState = any, TConfig = any, TPublicState = any
   /**
    * Inicializa o estado interno do jogo a partir da configuração fornecida pelo host.
    */
-  init(config: TConfig, context: GameContext): TState;
+  init(config: TConfig, context: GameContext): TState | Promise<TState>;
 
   /**
    * Gancho disparado quando um jogador entra na sala.

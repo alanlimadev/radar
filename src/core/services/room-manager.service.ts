@@ -51,7 +51,7 @@ export class RoomManagerService {
       players: [],
     };
 
-    const initialState = gameDef.init(config, context);
+    const initialState = await gameDef.init(config, context);
 
     const room: Room = {
       id: roomId,

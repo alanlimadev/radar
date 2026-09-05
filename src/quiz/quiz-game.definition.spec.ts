@@ -41,15 +41,66 @@ describe('QuizGameDefinition', () => {
     quizGame = new QuizGameDefinition();
   });
 
-  it('should initialize quiz state correctly', () => {
-    const state = quizGame.init(mockConfig, mockContext);
+  it('should initialize quiz state correctly', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
     expect(state.title).toBe('Quiz de Teste');
     expect(state.status).toBe('LOBBY');
     expect(state.currentQuestionIndex).toBe(0);
   });
 
-  it('should start game when host sends START_GAME', () => {
-    const state = quizGame.init(mockConfig, mockContext);
+  it('should load quiz questions from QuizService when only quizId is provided', async () => {
+    const mockQuizService = {
+      findQuizById: jest.fn().mockResolvedValue({
+        id: 'quiz-db-1',
+        title: 'Quiz do Banco',
+        questions: [
+          {
+            id: 'q1',
+            text: 'Qual o framework?',
+            order: 0,
+            alternatives: [{ id: 'a1', text: 'NestJS', isCorrect: true }],
+          },
+        ],
+      }),
+    };
+
+    const gameWithService = new QuizGameDefinition(mockQuizService as any);
+    const state = await gameWithService.init({ quizId: 'quiz-db-1' }, mockContext);
+
+    expect(state.title).toBe('Quiz do Banco');
+    expect(state.questions).toHaveLength(1);
+    expect(state.questions[0].text).toBe('Qual o framework?');
+    expect(mockQuizService.findQuizById).toHaveBeenCalledWith('quiz-db-1');
+  });
+
+  it('should throw NotFoundException if quizId does not exist', async () => {
+    const mockQuizService = {
+      findQuizById: jest.fn().mockResolvedValue(null),
+    };
+
+    const gameWithService = new QuizGameDefinition(mockQuizService as any);
+    await expect(
+      gameWithService.init({ quizId: 'inexistent' }, mockContext),
+    ).rejects.toThrow('Quiz "inexistent" não encontrado');
+  });
+
+  it('should throw BadRequestException if quiz has no questions', async () => {
+    const mockQuizService = {
+      findQuizById: jest.fn().mockResolvedValue({
+        id: 'quiz-empty',
+        title: 'Vazio',
+        questions: [],
+      }),
+    };
+
+    const gameWithService = new QuizGameDefinition(mockQuizService as any);
+    await expect(
+      gameWithService.init({ quizId: 'quiz-empty' }, mockContext),
+    ).rejects.toThrow('O quiz selecionado não possui perguntas configuradas');
+  });
+
+  it('should start game when host sends START_GAME', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
     const hostPlayer: Player = {
       id: 'host-1',
       name: 'Host',
@@ -82,8 +133,8 @@ describe('QuizGameDefinition', () => {
     expect(result.events![0].event).toBe('quizStarted');
   });
 
-  it('should compute scores when player submits correct answer', () => {
-    const state = quizGame.init(mockConfig, mockContext);
+  it('should compute scores when player submits correct answer', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
     state.status = 'QUESTION_ACTIVE';
 
     const player: Player = {
