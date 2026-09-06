@@ -170,6 +170,279 @@ describe('QuizGameDefinition', () => {
     );
 
     expect(result.directResponse?.isCorrect).toBe(true);
-    expect(result.newState.playerScores.get(player.id)).toBe(1);
+    expect(result.directResponse?.pointsAwarded).toBe(1000);
+    expect(result.newState.playerScores.get(player.id)).toBe(1000);
+    expect(result.newState.playerCorrectAnswers?.get(player.id)).toBe(1);
+    // Como era o único jogador, já deve transicionar para QUESTION_LEADERBOARD
+    expect(result.newState.status).toBe('QUESTION_LEADERBOARD');
+    expect(result.events?.some((e) => e.event === 'questionEnded')).toBe(true);
+    expect(result.events?.some((e) => e.event === 'scoresUpdate')).toBe(true);
+  });
+
+  it('should remain in QUESTION_ACTIVE when only some players have answered', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    state.status = 'QUESTION_ACTIVE';
+
+    const player1: Player = {
+      id: 'p1',
+      name: 'Alice',
+      socketId: 's1',
+      isHost: false,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+    const player2: Player = {
+      id: 'p2',
+      name: 'Bob',
+      socketId: 's2',
+      isHost: false,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const actionContext: ActionContext = {
+      ...mockContext,
+      players: [player1, player2],
+      sender: player1,
+    };
+
+    const result = quizGame.onAction(
+      state,
+      {
+        type: 'SUBMIT_ANSWER',
+        payload: { questionId: 'quest-1', alternativeId: 'alt-1' },
+        senderId: player1.id,
+        isHost: false,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    expect(result.newState.status).toBe('QUESTION_ACTIVE');
+    expect(result.events).toBeUndefined();
+  });
+
+  it('should transition to QUESTION_LEADERBOARD if host advances during QUESTION_ACTIVE', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    state.status = 'QUESTION_ACTIVE';
+
+    const hostPlayer: Player = {
+      id: 'host-1',
+      name: 'Prof',
+      socketId: 'sh',
+      isHost: true,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const actionContext: ActionContext = {
+      ...mockContext,
+      sender: hostPlayer,
+    };
+
+    // 1st click: Host encerra a pergunta ativa antes do tempo
+    const step1 = quizGame.onAction(
+      state,
+      {
+        type: 'NEXT_QUESTION',
+        payload: {},
+        senderId: hostPlayer.id,
+        isHost: true,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    expect(step1.newState.status).toBe('QUESTION_LEADERBOARD');
+    expect(step1.events?.some((e) => e.event === 'questionEnded')).toBe(true);
+
+    // 2nd click: Host avança da tela de Leaderboard para a próxima questão
+    const step2 = quizGame.onAction(
+      step1.newState,
+      {
+        type: 'NEXT_QUESTION',
+        payload: {},
+        senderId: hostPlayer.id,
+        isHost: true,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    expect(step2.newState.status).toBe('QUESTION_ACTIVE');
+    expect(step2.newState.currentQuestionIndex).toBe(1);
+    expect(step2.events?.some((e) => e.event === 'nextQuestion')).toBe(true);
+  });
+
+  it('should reveal isCorrect to players only on QUESTION_LEADERBOARD or GAME_OVER', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    const player: Player = {
+      id: 'p1',
+      name: 'Alice',
+      socketId: 's1',
+      isHost: false,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    state.status = 'QUESTION_ACTIVE';
+    const activeState = quizGame.getClientState(state, player, false);
+    expect(activeState.currentQuestion.alternatives[0].isCorrect).toBeUndefined();
+    expect(activeState.isLeaderboard).toBe(false);
+
+    state.status = 'QUESTION_LEADERBOARD';
+    const leaderboardState = quizGame.getClientState(state, player, false);
+    expect(leaderboardState.currentQuestion.alternatives[0].isCorrect).toBe(true);
+    expect(leaderboardState.isLeaderboard).toBe(true);
+  });
+
+  it('should award more points to earlier correct answers avoiding ties', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    state.status = 'QUESTION_ACTIVE';
+
+    const player1: Player = {
+      id: 'p1',
+      name: 'Alice',
+      socketId: 's1',
+      isHost: false,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+    const player2: Player = {
+      id: 'p2',
+      name: 'Bob',
+      socketId: 's2',
+      isHost: false,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const actionContext: ActionContext = {
+      ...mockContext,
+      players: [player1, player2],
+      sender: player1,
+    };
+
+    // Alice responds first and correctly
+    const res1 = quizGame.onAction(
+      state,
+      {
+        type: 'SUBMIT_ANSWER',
+        payload: { questionId: 'quest-1', alternativeId: 'alt-1' },
+        senderId: player1.id,
+        isHost: false,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    // Bob responds second and correctly
+    const res2 = quizGame.onAction(
+      res1.newState,
+      {
+        type: 'SUBMIT_ANSWER',
+        payload: { questionId: 'quest-1', alternativeId: 'alt-1' },
+        senderId: player2.id,
+        isHost: false,
+        timestamp: new Date(),
+      },
+      { ...actionContext, sender: player2 },
+    );
+
+    expect(res1.directResponse?.pointsAwarded).toBe(1000);
+    expect(res2.directResponse?.pointsAwarded).toBe(950);
+    expect(res2.newState.playerScores.get(player1.id)).toBe(1000);
+    expect(res2.newState.playerScores.get(player2.id)).toBe(950);
+
+    const finalResults = quizGame.getFinalResults(res2.newState, [player1, player2]);
+    expect(finalResults[0].playerId).toBe(player1.id);
+    expect(finalResults[0].score).toBe(1000);
+    expect(finalResults[0].correctAnswers).toBe(1);
+    expect(finalResults[1].playerId).toBe(player2.id);
+    expect(finalResults[1].score).toBe(950);
+    expect(finalResults[1].correctAnswers).toBe(1);
+  });
+
+  it('should transition directly to GAME_OVER and emit quizEnded when all players answer the last question', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    // Config has 2 questions: quest-1 (idx 0), quest-2 (idx 1). Move to quest-2 (last question)
+    state.currentQuestionIndex = 1;
+    state.status = 'QUESTION_ACTIVE';
+
+    const player1: Player = {
+      id: 'p1',
+      name: 'Alice',
+      socketId: 's1',
+      isHost: false,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const actionContext: ActionContext = {
+      ...mockContext,
+      players: [player1],
+      sender: player1,
+    };
+
+    const res = quizGame.onAction(
+      state,
+      {
+        type: 'SUBMIT_ANSWER',
+        payload: { questionId: 'quest-2', alternativeId: 'alt-3' },
+        senderId: player1.id,
+        isHost: false,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    expect(res.newState.status).toBe('GAME_OVER');
+    expect(res.events?.some((e) => e.event === 'quizEnded')).toBe(true);
+    expect(quizGame.isFinished(res.newState)).toBe(true);
+  });
+
+  it('should transition directly to GAME_OVER when host skips/ends the last question while active', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    state.currentQuestionIndex = 1; // Last question
+    state.status = 'QUESTION_ACTIVE';
+
+    const hostPlayer: Player = {
+      id: 'host-1',
+      name: 'Professor',
+      socketId: 'host-s1',
+      isHost: true,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const actionContext: ActionContext = {
+      ...mockContext,
+      players: [hostPlayer],
+      sender: hostPlayer,
+    };
+
+    const res = quizGame.onAction(
+      state,
+      {
+        type: 'NEXT_QUESTION',
+        payload: {},
+        senderId: hostPlayer.id,
+        isHost: true,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    expect(res.newState.status).toBe('GAME_OVER');
+    expect(res.events?.some((e) => e.event === 'quizEnded')).toBe(true);
+    expect(quizGame.isFinished(res.newState)).toBe(true);
   });
 });
