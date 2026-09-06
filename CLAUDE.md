@@ -1,10 +1,18 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) and other AI coding assistants when working with code in this repository.
+
+> 📘 **Full AI Agent Guidelines:** See [`AGENT.md`](AGENT.md) for detailed architectural boundaries, invariant rules, and WebSocket contracts.
+
+---
 
 ## Project Overview
 
-**Radar** is a NestJS backend for real-time multiplayer quiz sessions (Kahoot-style), designed for local network (WLAN) operation without internet connectivity. It combines a REST API with a Socket.IO WebSocket gateway on the same port (3333).
+**RADAR** is a modular NestJS framework for building low-latency, real-time multiplayer applications and games designed to run over local wireless networks (WLAN) without internet connectivity.
+
+It combines a REST API with a Socket.IO WebSocket gateway on the same port (3333).
+
+---
 
 ## Commands
 
@@ -35,43 +43,57 @@ npx prisma generate                   # Regenerate Prisma client after schema ch
 npx prisma studio                     # Open database browser
 ```
 
+---
+
 ## Architecture
 
 ### Module Structure
 
-Each domain follows the NestJS pattern: `*.module.ts` → `*.controller.ts` → `*.service.ts` → optional `*.repository.ts`, with DTOs in `dtos.ts`. Each module has its own `CLAUDE.md` with business logic details.
+The project decouples the core framework engine (`src/core/`) from game-specific logic (`src/quiz/`):
 
+- **`core/`** — Generic multiplayer framework engine:
+  - `RoomManagerService`: In-memory room state, 6-digit PINs, reconnect handling, database persistence.
+  - `GameRegistryService`: Registry of games implementing `IGameDefinition`.
+  - `RadarGateway`: Socket.IO gateway supporting both universal `radar:*` events and legacy compatibility events.
+  - `RoomController`: REST endpoints under `/rooms`.
+- **`quiz/`** — Kahoot-style quiz proof of concept:
+  - `QuizGameDefinition`: Implements `IGameDefinition` for quizzes.
+  - `QuizController`, `QuizService`, `QuizRepository`: CRUD for quizzes, questions, and alternatives. See [`src/quiz/CLAUDE.md`](src/quiz/CLAUDE.md).
 - **`prisma/`** — Shared `PrismaService` singleton. See [`src/prisma/CLAUDE.md`](src/prisma/CLAUDE.md).
-- **`auth/`** — JWT registration/login. `JwtAuthGuard` + `req.user`. See [`src/auth/CLAUDE.md`](src/auth/CLAUDE.md).
-- **`user/`** — Host profile management (routes not yet implemented). See [`src/user/CLAUDE.md`](src/user/CLAUDE.md).
-- **`quiz/`** — Quiz/question/alternative CRUD with ownership rules. See [`src/quiz/CLAUDE.md`](src/quiz/CLAUDE.md).
-- **`game-session/`** — Real-time game engine (REST + Socket.IO gateway). See [`src/game-session/CLAUDE.md`](src/game-session/CLAUDE.md).
+- **`auth/`** — JWT registration/login for hosts. `JwtAuthGuard` + `req.user`. See [`src/auth/CLAUDE.md`](src/auth/CLAUDE.md).
+- **`user/`** — Host profile management. See [`src/user/CLAUDE.md`](src/user/CLAUDE.md).
+
+> ⚠️ Note: `game-session/` was the legacy monolithic module and has been completely replaced by `core/`.
 
 ### Data Model
 
 ```
-Host → Quiz → Question → Alternative
-Host → GameSession → Player → Answer
-       Quiz ↗
+Host ──┬──> Quiz ──> Question ──> Alternative
+       │
+       └──> GameRoom (code, gameType, config, status) ──> RoomPlayer (score, metadata)
 ```
 
 Swagger UI: `http://localhost:3333/swagger`
+
+---
 
 ## Environment Variables
 
 Required in `.env`:
 
-```
+```env
 POSTGRES_DB=radardb
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=<password>
-DATABASE_URL=postgresql://admin:<password>@postgresql:5432/radardb?schema=public
+DATABASE_URL=postgresql://admin:<password>@localhost:5432/radardb?schema=public
 PORT=3333
-NODE_ENV=production
+NODE_ENV=development
 JWT_SECRET=<long-random-string>
 ```
 
-When running locally without Docker, change `@postgresql:` to `@localhost:` in `DATABASE_URL`.
+When running in Docker Compose, change `@localhost:` to `@postgresql:` in `DATABASE_URL`.
+
+---
 
 ## Commit Convention
 
@@ -82,6 +104,6 @@ Format: `<type>(<scope>): <imperative description>`
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`
 
 Examples:
-- `feat(quiz): add support for multiple-choice questions`
-- `fix(game-session): resolve race condition in player joining`
-- `chore(deps): bump prisma client to latest major version`
+- `feat(core): support custom room config options`
+- `fix(quiz): cascade delete question alternatives`
+- `docs(readme): add protocol documentation`
