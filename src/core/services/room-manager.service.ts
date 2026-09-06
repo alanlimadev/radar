@@ -338,7 +338,8 @@ export class RoomManagerService {
     const gameDef = this.gameRegistry.get(room.gameType);
     if (!gameDef) throw new NotFoundException('Jogo não encontrado.');
 
-    return gameDef.getFinalResults(room.state);
+    const playersList = Array.from(room.players.values());
+    return gameDef.getFinalResults(room.state, playersList);
   }
 
   /**
@@ -350,6 +351,9 @@ export class RoomManagerService {
 
     room.status = 'FINISHED';
     room.endedAt = new Date();
+    if (room.state && typeof room.state === 'object') {
+      (room.state as any).status = 'GAME_OVER';
+    }
     return room;
   }
 

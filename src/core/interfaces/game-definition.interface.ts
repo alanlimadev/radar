@@ -68,5 +68,5 @@ export interface IGameDefinition<TState = any, TConfig = any, TPublicState = any
   /**
    * Retorna os dados de encerramento / ranking final / estatísticas.
    */
-  getFinalResults(state: TState): any;
+  getFinalResults(state: TState, players?: Player[]): any;
 }

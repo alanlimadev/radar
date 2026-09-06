@@ -45,6 +45,8 @@ export interface QuizState {
   currentQuestionIndex: number;
   answers: Map<string, PlayerAnswerRecord[]>; // questionId -> list of answers
   playerScores: Map<string, number>;          // playerId -> score
+  playerCorrectAnswers: Map<string, number>;  // playerId -> correct answers count
+  playerNames: Map<string, string>;           // playerId -> player name
   status: 'LOBBY' | 'QUESTION_ACTIVE' | 'QUESTION_LEADERBOARD' | 'GAME_OVER';
 }
 
@@ -98,8 +100,10 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
       title: title || 'Quiz',
       questions: questions || [],
       currentQuestionIndex: 0,
-      answers: new Map<string, PlayerAnswerRecord[]>(),
-      playerScores: new Map<string, number>(),
+      answers: new Map(),
+      playerScores: new Map(),
+      playerCorrectAnswers: new Map(),
+      playerNames: new Map(),
       status: 'LOBBY',
     };
   }
@@ -107,6 +111,12 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
   onPlayerJoin(state: QuizState, player: Player, _context: GameContext): ActionResult<QuizState> {
     if (!state.playerScores.has(player.id)) {
       state.playerScores.set(player.id, 0);
+    }
+    if (!state.playerNames) {
+      state.playerNames = new Map<string, string>();
+    }
+    if (player.name) {
+      state.playerNames.set(player.id, player.name);
     }
     return { newState: state };
   }
@@ -179,7 +189,16 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
         const qAnswers = state.answers.get(targetQuestion.id) || [];
         // Impede responder duas vezes a mesma pergunta
         const existingAns = qAnswers.find((a) => a.playerId === senderId);
+        let pointsAwarded = 0;
+
         if (!existingAns) {
+          if (isCorrect) {
+            // Ordem de acertos para esta pergunta: quem responde primeiro ganha mais pontos
+            const priorCorrectCount = qAnswers.filter((a) => a.isCorrect).length;
+            // 1º acerto ganha 1000, 2º 950, 3º 900... piso de 100 pontos
+            pointsAwarded = Math.max(100, 1000 - priorCorrectCount * 50);
+          }
+
           qAnswers.push({
             playerId: senderId,
             questionId: targetQuestion.id,
@@ -189,23 +208,71 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
           });
           state.answers.set(targetQuestion.id, qAnswers);
 
-          // Atualiza pontuação se estiver correta
+          // Atualiza pontuação e acertos se estiver correta
           if (isCorrect) {
             const currentScore = state.playerScores.get(senderId) || 0;
-            state.playerScores.set(senderId, currentScore + 1);
+            const currentCorrect = state.playerCorrectAnswers?.get(senderId) || 0;
+            const newScore = currentScore + pointsAwarded;
+
+            state.playerScores.set(senderId, newScore);
+            state.playerCorrectAnswers?.set(senderId, currentCorrect + 1);
+
             // Atualiza também no player model do contexto
             const p = context.players.find((item) => item.id === senderId);
             if (p) {
-              p.score = currentScore + 1;
+              p.score = newScore;
             }
+          }
+        }
+
+        const events: any[] = [];
+        const activePlayers = context.players.filter((p) => !p.isHost);
+        const allAnswered = activePlayers.length > 0 && qAnswers.length >= activePlayers.length;
+
+        // Se todos os jogadores ativos responderam:
+        // Se for a última pergunta, finaliza direto para GAME_OVER (ranking final / pódio)
+        // Caso contrário, transiciona para QUESTION_LEADERBOARD
+        if (allAnswered) {
+          const isLastQuestion = state.currentQuestionIndex >= state.questions.length - 1;
+          const scores = this.getFinalResults(state, context.players);
+          const correctAlt = targetQuestion.alternatives.find((a) => a.isCorrect);
+
+          events.push({
+            event: 'scoresUpdate',
+            payload: { scores },
+          });
+
+          events.push({
+            event: 'questionEnded',
+            payload: {
+              questionId: targetQuestion.id,
+              correctAlternativeId: correctAlt?.id,
+              scores,
+              currentQuestionIndex: state.currentQuestionIndex,
+              totalQuestions: state.questions.length,
+              totalAnswers: qAnswers.length,
+              totalPlayers: activePlayers.length,
+            },
+          });
+
+          if (isLastQuestion) {
+            state.status = 'GAME_OVER';
+            events.push({
+              event: 'quizEnded',
+              payload: { scores },
+            });
+          } else {
+            state.status = 'QUESTION_LEADERBOARD';
           }
         }
 
         return {
           newState: state,
+          events: events.length > 0 ? events : undefined,
           directResponse: {
             success: true,
             isCorrect,
+            pointsAwarded: isCorrect ? pointsAwarded : 0,
           },
         };
       }
@@ -215,6 +282,71 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
           throw new Error('Apenas o host pode avançar as perguntas');
         }
 
+        const currentQ = state.questions[state.currentQuestionIndex];
+        const activePlayers = context.players.filter((p) => !p.isHost);
+        const qAnswers = currentQ ? state.answers.get(currentQ.id) || [] : [];
+
+        // Se a pergunta ainda está ativa, o host está encerrando a pergunta
+        if (state.status === 'QUESTION_ACTIVE') {
+          const isLastQuestion = state.currentQuestionIndex >= state.questions.length - 1;
+          const scores = this.getFinalResults(state, context.players);
+          const correctAlt = currentQ?.alternatives.find((a) => a.isCorrect);
+
+          if (isLastQuestion) {
+            state.status = 'GAME_OVER';
+            return {
+              newState: state,
+              events: [
+                {
+                  event: 'scoresUpdate',
+                  payload: { scores },
+                },
+                {
+                  event: 'questionEnded',
+                  payload: {
+                    questionId: currentQ?.id,
+                    correctAlternativeId: correctAlt?.id,
+                    scores,
+                    currentQuestionIndex: state.currentQuestionIndex,
+                    totalQuestions: state.questions.length,
+                    totalAnswers: qAnswers.length,
+                    totalPlayers: activePlayers.length,
+                  },
+                },
+                {
+                  event: 'quizEnded',
+                  payload: { scores },
+                },
+              ],
+            };
+          }
+
+          state.status = 'QUESTION_LEADERBOARD';
+
+          return {
+            newState: state,
+            events: [
+              {
+                event: 'scoresUpdate',
+                payload: { scores },
+              },
+              {
+                event: 'questionEnded',
+                payload: {
+                  questionId: currentQ?.id,
+                  correctAlternativeId: correctAlt?.id,
+                  scores,
+                  currentQuestionIndex: state.currentQuestionIndex,
+                  totalQuestions: state.questions.length,
+                  totalAnswers: qAnswers.length,
+                  totalPlayers: activePlayers.length,
+                },
+              },
+            ],
+          };
+        }
+
+        // Se já está no Leaderboard, avança para a próxima pergunta ou encerra o quiz
         if (state.currentQuestionIndex < state.questions.length - 1) {
           state.currentQuestionIndex += 1;
           state.status = 'QUESTION_ACTIVE';
@@ -279,6 +411,8 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
 
   getClientState(state: QuizState, forPlayer?: Player, isHost?: boolean): any {
     const currentQ = state.questions[state.currentQuestionIndex];
+    const isLeaderboardOrOver =
+      state.status === 'QUESTION_LEADERBOARD' || state.status === 'GAME_OVER';
 
     const sanitizedQuestion = currentQ
       ? {
@@ -288,18 +422,22 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
           alternatives: currentQ.alternatives.map((alt) => ({
             id: alt.id,
             text: alt.text,
-            // Revela isCorrect somente para o Host
-            isCorrect: isHost ? alt.isCorrect : undefined,
+            // Revela isCorrect para o Host OU quando a rodada encerrou (Leaderboard / Game Over)
+            isCorrect: isHost || isLeaderboardOrOver ? alt.isCorrect : undefined,
           })),
         }
       : null;
 
+    const qAnswers = currentQ ? state.answers.get(currentQ.id) || [] : [];
+
     return {
       title: state.title,
       status: state.status,
+      isLeaderboard: state.status === 'QUESTION_LEADERBOARD',
       currentQuestionIndex: state.currentQuestionIndex,
       totalQuestions: state.questions.length,
       currentQuestion: sanitizedQuestion,
+      totalAnswers: qAnswers.length,
       isFinished: state.status === 'GAME_OVER',
       myScore: forPlayer ? state.playerScores.get(forPlayer.id) || 0 : undefined,
     };
@@ -311,32 +449,52 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
 
   getFinalResults(state: QuizState, playersList?: Player[]): any[] {
     const results: Array<{
+      id: string;
       playerId: string;
+      name: string;
       playerName: string;
       score: number;
       correctAnswers: number;
     }> = [];
 
-    // Se temos a lista de players, usamos ela para preencher nomes
+    const playerMap = new Map<string, Player>();
+    if (playersList && playersList.length > 0) {
+      for (const p of playersList) {
+        if (!p.isHost) {
+          playerMap.set(p.id, p);
+        }
+      }
+    }
+
+    // Processa pontuações registradas
+    for (const [playerId, score] of state.playerScores.entries()) {
+      const p = playerMap.get(playerId);
+      const name = p?.name || state.playerNames?.get(playerId) || 'Jogador';
+      const correctAnswers = state.playerCorrectAnswers?.get(playerId) || 0;
+      results.push({
+        id: playerId,
+        playerId,
+        name,
+        playerName: name,
+        score,
+        correctAnswers,
+      });
+    }
+
+    // Inclui jogadores conectados que possam ter ficado com 0 pontos e não estavam no map
     if (playersList && playersList.length > 0) {
       for (const p of playersList) {
         if (p.isHost) continue;
-        const score = state.playerScores.get(p.id) || 0;
-        results.push({
-          playerId: p.id,
-          playerName: p.name,
-          score,
-          correctAnswers: score,
-        });
-      }
-    } else {
-      for (const [playerId, score] of state.playerScores.entries()) {
-        results.push({
-          playerId,
-          playerName: 'Jogador',
-          score,
-          correctAnswers: score,
-        });
+        if (!state.playerScores.has(p.id)) {
+          results.push({
+            id: p.id,
+            playerId: p.id,
+            name: p.name,
+            playerName: p.name,
+            score: 0,
+            correctAnswers: 0,
+          });
+        }
       }
     }
 

@@ -14,7 +14,7 @@ export class GameRegistryService {
       this.logger.warn(`Jogo com gameType "${game.gameType}" já estava registrado. Sobrescrevendo...`);
     }
     this.games.set(game.gameType, game);
-    this.logger.log(`🎮 Jogo registrado com sucesso: ${game.name} (${game.gameType} v${game.version})`);
+    this.logger.log(`Jogo registrado com sucesso: ${game.name} (${game.gameType} v${game.version})`);
   }
 
   /**
