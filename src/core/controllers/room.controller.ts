@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { RoomManagerService } from '../services/room-manager.service';
 import { GameRegistryService } from '../services/game-registry.service';
+import { RadarGateway } from '../gateways/radar.gateway';
 import { CreateRoomDto } from './dtos';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 
@@ -26,6 +27,7 @@ export class RoomController {
   constructor(
     private readonly roomManager: RoomManagerService,
     private readonly gameRegistry: GameRegistryService,
+    private readonly radarGateway: RadarGateway,
   ) {}
 
   @ApiOperation({
@@ -128,7 +130,15 @@ export class RoomController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Put(':code/finish')
-  finishRoom(@Param('code') code: string) {
-    return this.roomManager.finishRoom(code);
+  async finishRoom(@Param('code') code: string) {
+    const room = await this.roomManager.finishRoom(code);
+    let scores: any[] = [];
+    try {
+      scores = this.roomManager.getFinalResults(room.code);
+    } catch {
+      scores = [];
+    }
+    this.radarGateway.notifyRoomFinished(room.code, scores);
+    return room;
   }
 }

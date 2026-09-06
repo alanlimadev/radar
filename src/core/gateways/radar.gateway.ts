@@ -188,17 +188,31 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Dispara eventos extras gerados pelo reducer do jogo
       if (actionResult.events && actionResult.events.length > 0) {
         for (const evt of actionResult.events) {
+          const isLegacyEvent = Boolean(evt.event && !evt.event.startsWith('radar:'));
+
           if (!evt.target || evt.target === 'ALL') {
             this.server.to(room.code).emit('radar:customEvent', evt);
+            if (isLegacyEvent) {
+              this.server.to(room.code).emit(evt.event, evt.payload);
+            }
           } else if (evt.target === 'HOST_ONLY' && room.hostSocketId) {
             this.server.to(room.hostSocketId).emit('radar:customEvent', evt);
+            if (isLegacyEvent) {
+              this.server.to(room.hostSocketId).emit(evt.event, evt.payload);
+            }
           } else if (evt.target === 'PLAYERS_ONLY') {
             client.broadcast.to(room.code).emit('radar:customEvent', evt);
+            if (isLegacyEvent) {
+              client.broadcast.to(room.code).emit(evt.event, evt.payload);
+            }
           } else if (Array.isArray(evt.target)) {
             for (const pid of evt.target) {
               const targetPlayer = room.players.get(pid);
               if (targetPlayer?.socketId) {
                 this.server.to(targetPlayer.socketId).emit('radar:customEvent', evt);
+                if (isLegacyEvent) {
+                  this.server.to(targetPlayer.socketId).emit(evt.event, evt.payload);
+                }
               }
             }
           }
@@ -285,22 +299,10 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('startQuiz')
   async handleLegacyStartQuiz(@ConnectedSocket() client: Socket) {
-    const result = await this.handleRadarDispatchAction(
+    return this.handleRadarDispatchAction(
       { type: 'START_GAME' },
       client,
     );
-    const room = this.roomManager.findRoom(client.data?.roomCode);
-    if (room) {
-      const state = this.roomManager.getClientState(room.code, undefined, true);
-      if (state?.currentQuestion) {
-        this.server.to(room.code).emit('quizStarted', {
-          question: state.currentQuestion,
-          currentQuestionIndex: state.currentQuestionIndex,
-          totalQuestions: state.totalQuestions,
-        });
-      }
-    }
-    return result;
   }
 
   @SubscribeMessage('submitAnswer')
@@ -322,6 +324,7 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit('answerSubmitted', {
       success: true,
       isCorrect: result?.response?.isCorrect ?? false,
+      pointsAwarded: result?.response?.pointsAwarded ?? 0,
     });
 
     return result;
@@ -329,28 +332,10 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('nextQuestion')
   async handleLegacyNextQuestion(@ConnectedSocket() client: Socket) {
-    const result = await this.handleRadarDispatchAction(
+    return this.handleRadarDispatchAction(
       { type: 'NEXT_QUESTION' },
       client,
     );
-
-    const room = this.roomManager.findRoom(client.data?.roomCode);
-    if (room) {
-      if (room.status === 'FINISHED') {
-        const scores = this.roomManager.getFinalResults(room.code);
-        this.server.to(room.code).emit('quizEnded', { scores });
-      } else {
-        const state = this.roomManager.getClientState(room.code, undefined, true);
-        if (state?.currentQuestion) {
-          this.server.to(room.code).emit('nextQuestion', {
-            question: state.currentQuestion,
-            currentQuestionIndex: state.currentQuestionIndex,
-            totalQuestions: state.totalQuestions,
-          });
-        }
-      }
-    }
-    return result;
   }
 
   @SubscribeMessage('getScores')
@@ -364,5 +349,30 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const scores = this.roomManager.getFinalResults(roomCode);
     this.server.to(roomCode).emit('scoresUpdate', { scores });
     return { scores };
+  }
+
+  @SubscribeMessage('finishQuiz')
+  async handleLegacyFinishQuiz(@ConnectedSocket() client: Socket) {
+    const roomCode = client.data?.roomCode;
+    if (roomCode) {
+      await this.roomManager.finishRoom(roomCode);
+      let scores: any[] = [];
+      try {
+        scores = this.roomManager.getFinalResults(roomCode);
+      } catch {
+        scores = [];
+      }
+      this.notifyRoomFinished(roomCode, scores);
+    }
+    return { success: true };
+  }
+
+  /**
+   * Notifica todos os participantes conectados na sala que a sessão foi finalizada.
+   */
+  notifyRoomFinished(roomCode: string, scores?: any[]) {
+    this.server.to(roomCode).emit('radar:roomFinished', { roomCode });
+    this.server.to(roomCode).emit('sessionFinished', { roomCode });
+    this.server.to(roomCode).emit('quizEnded', { scores: scores || [] });
   }
 }
