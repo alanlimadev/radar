@@ -20,6 +20,7 @@ import { GameRegistryService } from '../services/game-registry.service';
 import { RadarGateway } from '../gateways/radar.gateway';
 import { CreateRoomDto } from './dtos';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { getLocalIpAddress, getAllLocalIpAddresses } from '../network/ip.util';
 
 @ApiTags('RADAR Core Rooms')
 @Controller('rooms')
@@ -41,6 +42,19 @@ export class RoomController {
   @Get('games')
   listGames() {
     return this.gameRegistry.list();
+  }
+
+  @ApiOperation({
+    summary: 'Obter o IP da máquina na rede local',
+    description:
+      'Retorna o IP prioritário (Hotspot 192.168.137.1 ou Wi-Fi local) e todos os IPs reais disponíveis para conexão dos jogadores.',
+  })
+  @Get('network-ip')
+  getNetworkIp() {
+    return {
+      ip: getLocalIpAddress(),
+      allIps: getAllLocalIpAddresses(),
+    };
   }
 
   @ApiOperation({

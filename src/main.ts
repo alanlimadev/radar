@@ -15,6 +15,19 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
   );
 
+  app.use((req: any, res: any, next: any) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      if (res.statusCode >= 400) {
+        console.error(`[HTTP ERROR] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`);
+      } else {
+        console.log(`[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`);
+      }
+    });
+    next();
+  });
+
   const config = new DocumentBuilder()
     .setTitle('Kahoot Offline API')
     .setDescription(

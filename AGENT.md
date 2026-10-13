@@ -136,6 +136,10 @@ npx prisma studio                              # Web UI for database inspection
 docker compose up --build -d # Launch Postgres + API containers
 docker compose logs -f       # Stream container logs
 docker compose down          # Stop all containers
+
+# Desktop Application Build (Standalone .exe)
+# Always refer to docs/BUILD_EXECUTABLE.md for complete details
+.\build-app.ps1              # Run from workspace root to build RADAR-Quiz_1.0.0_x64-setup.exe
 ```
 
 ---
@@ -153,3 +157,15 @@ docker compose down          # Stop all containers
   - `fix(quiz): ensure accurate score calculation on late submissions`
   - `docs(api): update room controller swagger annotations`
   - `test(core): add edge-case tests for pin collision resolution`
+
+---
+
+## 7. Desktop Executable Build Workflow
+
+When tasked with generating, packaging, or modifying the standalone desktop installer (`.exe`):
+
+1. **Mandatory Documentation:** Always read and follow [`docs/BUILD_EXECUTABLE.md`](./docs/BUILD_EXECUTABLE.md). It contains the complete architectural specification, Tauri sidecar configuration, SQLite AppData paths, and diagnostic steps.
+2. **Build Execution:** Never build partial steps manually unless debugging. Use the root automation script `.\build-app.ps1`.
+3. **Database & Persistence:** The standalone runtime uses SQLite (`radar.db`) situated in `%APPDATA%\RADAR-Quiz\data\radar.db`. Do not hardcode database paths to relative directories.
+4. **Network & Hotspot:** The backend exposes `GET /rooms/network-ip` to auto-detect the host IP, prioritizing the Windows Mobile Hotspot adapter (`192.168.137.1`).
+
