@@ -49,13 +49,19 @@ Para compilar o instalador em uma máquina de desenvolvimento, são necessários
 
 ## 3. Como Gerar o Instalador (Método Rápido - 1 Comando)
 
-Na raiz do repositório (`tcc/`), execute no PowerShell:
+Você pode executar o build de qualquer um destes lugares:
 
+1. **Diretamente do repositório backend (`radar-tcc`)**:
+```bash
+npm run build:app
+```
+
+2. **Ou via PowerShell na raiz (`tcc/`)**:
 ```powershell
 .\build-app.ps1
 ```
 
-O script executa automaticamente os 5 passos necessários e gera o arquivo instalador em:
+O script detecta o `node.exe` instalado no sistema, orquestra os 5 passos necessários e gera o arquivo instalador em:
 ```
 offline-game-quiz\src-tauri\target\release\bundle\nsis\RADAR-Quiz_1.0.0_x64-setup.exe
 ```
