@@ -1,6 +1,9 @@
-# Guia de Construção do Executável Desktop (RADAR Desktop Installer)
+# Guia de Construção do Executável Desktop (RADAR Desktop)
 
-Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo a passo para gerar o instalador executável oficial do **RADAR (`RADAR-Quiz_1.0.0_x64-setup.exe`)** no Windows.
+Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo a passo para gerar o instalador executável oficial do **RADAR**:
+- **Windows**: Instalador executável **`.exe` (NSIS)** (`RADAR-Quiz_1.0.0_x64-setup.exe`).
+- **Linux (Debian/Ubuntu/Mint)**: Pacote instalador **`.deb`** (`RADAR-Quiz_1.0.0_amd64.deb`).
+- **Linux (Universal)**: Executável portátil **`.AppImage`** (`RADAR-Quiz_1.0.0_amd64.AppImage`).
 
 ---
 
@@ -9,62 +12,107 @@ Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo 
 O sistema foi desenhado para que qualquer usuário leigo (professores, instrutores) consiga instalar e rodar a aplicação em um ambiente 100% offline (sem internet, sem Docker, sem Node.js e sem conhecimentos técnicos prévios):
 
 ```text
-[RADAR-Quiz_1.0.0_x64-setup.exe] (Instalador NSIS gerado pelo Tauri)
+[RADAR-Quiz Instalador / AppImage / NSIS]
                   │
-                  ▼ (Instala em %LOCALAPPDATA%\RADAR-Quiz\)
+                  ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │ RADAR-Quiz.exe (App Nativo Tauri em Rust)                   │
-  │   ├── WebView Nativa do Windows (carrega o frontend)        │
+  │ RADAR-Quiz (App Nativo Tauri em Rust)                       │
+  │   ├── WebView Nativa (Windows WebView2 / Linux WebKitGTK)   │
   │   └── Gerenciador de Processo Filho (Rust Command)          │
   │         │                                                   │
-  │         ▼ Spawna em background (sem terminal preto):        │
-  │       node.exe index.js (NestJS Unificado na porta 3333)    │
+  │         ▼ Spawna em background (sem terminal visível):      │
+  │       node index.js (NestJS Unificado na porta 3333)        │
   │         ├── Servindo a API REST e WebSocket Gateway         │
   │         ├── Servindo os arquivos estáticos do React         │
-  │         └── Banco de Dados SQLite (%APPDATA%\RADAR-Quiz\)   │
+  │         └── Banco de Dados SQLite local                     │
   └─────────────────────────────────────────────────────────────┘
                   │
                   ▼
   [Dispositivos dos Alunos / Celulares via Hotspot Wi-Fi]
-  Acessam http://192.168.137.1:3333/game escaneando o QR Code
+  Acessam http://<IP-DO-HOST>:3333/game escaneando o QR Code
 ```
 
 ### Principais Invariantes:
-1. **Zero dependência externa na máquina final**: O executável inclui seu próprio runtime do Node.js (`node.exe`), as engines do Prisma e todo o frontend estático.
+1. **Zero dependência externa na máquina final**: O executável inclui seu próprio runtime do Node.js (`node.exe` no Windows ou `node` no Linux), as engines nativas do Prisma e todo o frontend estático.
 2. **Porta única (3333)**: Tanto o backend quanto a interface web dos celulares dos alunos utilizam exclusivamente a porta `3333`.
-3. **Persistência Segura**: O banco SQLite (`radar.db`) é mantido em `%APPDATA%\RADAR-Quiz\data\radar.db`, garantindo que atualizações do executável não apaguem os dados e que não sejam necessários privilégios de Administrador para escrita.
-4. **Logs automáticos**: O servidor redireciona toda sua saída para `%APPDATA%\com.radar.quiz\logs\radar-server.log`.
+3. **Persistência Segura**: O banco SQLite (`radar.db`) é mantido no diretório de dados do usuário (`%APPDATA%` no Windows ou `~/.config` no Linux), garantindo que atualizações do executável não apaguem os dados.
+4. **Logs automáticos**: O servidor redireciona toda sua saída para a pasta de logs do aplicativo (`radar-server.log`).
 
 ---
 
-## 2. Pré-requisitos para Compilação (Ambiente de Desenvolvimento)
+## 2. Pré-requisitos para Compilação
 
-Para compilar o instalador em uma máquina de desenvolvimento, são necessários:
-- **Node.js**: Versão 20+ (LTS) instalada no sistema.
-- **Rust & Cargo**: Instalados via `rustup` (alvo `x86_64-pc-windows-msvc`).
-- **Tauri CLI**: `@tauri-apps/cli` v2 (incluso nas dependências ou via `npx`).
-- **PowerShell**: Para execução do script automatizado de build.
+### Para Windows (`.exe` NSIS):
+- **Node.js**: Versão 20+ (LTS).
+- **Rust & Cargo**: Instalados via `rustup` (`x86_64-pc-windows-msvc`).
+- **PowerShell**.
+
+### Para Linux (`.deb` e `.AppImage` via WSL2 ou Ubuntu):
+- **Distribuição**: Ubuntu/Debian (nativo ou no WSL2).
+- **Bibliotecas do Sistema**:
+  ```bash
+  sudo apt install -y curl wget build-essential libwebkit2gtk-4.1-dev \
+      libssl-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+  ```
+- **Node.js**: Versão 20+ no Linux.
+- **Rust & Cargo**: Instalados no Linux (`x86_64-unknown-linux-gnu`).
 
 ---
 
-## 3. Como Gerar o Instalador (Método Rápido - 1 Comando)
+## 3. Como Gerar os Binários (Métodos Rápidos - 1 Comando)
 
-Você pode executar o build de qualquer um destes lugares:
-
-1. **Diretamente do repositório backend (`radar-tcc`)**:
+### No Windows (Gerar `.exe`):
+Execute a partir do diretório `radar-tcc/`:
 ```bash
 npm run build:app
 ```
+*(Ou execute `.\scripts\build-app.ps1`)*
 
-2. **Ou via PowerShell na raiz (`tcc/`)**:
-```powershell
-.\build-app.ps1
+O instalador será gerado em:
+```
+offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.0.0_x64-setup.exe
 ```
 
-O script detecta o `node.exe` instalado no sistema, orquestra os 5 passos necessários e gera o arquivo instalador em:
+---
+
+### No Linux / WSL2 (Gerar `.deb` e `.AppImage`):
+No WSL ou terminal Linux, navegue até `radar-tcc/` e execute:
+```bash
+npm run build:app:linux
 ```
-offline-game-quiz\src-tauri\target\release\bundle\nsis\RADAR-Quiz_1.0.0_x64-setup.exe
+*(Ou execute `./scripts/build-app.sh`)*
+
+Os pacotes serão gerados em:
+- **Pacote Debian**:
+  ```
+  offline-game-quiz/src-tauri/target/release/bundle/deb/RADAR-Quiz_1.0.0_amd64.deb
+  ```
+- **AppImage Portátil**:
+  ```
+  offline-game-quiz/src-tauri/target/release/bundle/appimage/RADAR-Quiz_1.0.0_amd64.AppImage
+  ```
+
+---
+
+## 4. Como Executar no Linux
+
+### Usando o `.AppImage` (Sem instalação):
+1. Dê permissão de execução:
+   ```bash
+   chmod +x RADAR-Quiz_1.0.0_amd64.AppImage
+   ```
+2. Execute diretamente:
+   ```bash
+   ./RADAR-Quiz_1.0.0_amd64.AppImage
+   ```
+
+### Usando o `.deb` (Instalação no sistema):
+```bash
+sudo dpkg -i RADAR-Quiz_1.0.0_amd64.deb
+# Ou com o apt:
+sudo apt install ./RADAR-Quiz_1.0.0_amd64.deb
 ```
+O aplicativo ficará disponível no menu de aplicativos do sistema com o ícone do RADAR.
 
 ---
 

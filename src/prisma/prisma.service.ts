@@ -4,8 +4,20 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 function getDatabaseUrl(): string {
-  const appData = process.env.APPDATA || (process.platform === 'darwin' ? `${process.env.HOME}/Library/Application Support` : `${process.env.HOME}/.config`);
-  const dataDir = appData ? path.join(appData, 'RADAR-Quiz', 'data') : path.join(process.cwd(), 'data');
+  let dataDir: string;
+
+  if (process.env.RADAR_DATA_DIR) {
+    dataDir = path.join(process.env.RADAR_DATA_DIR, 'data');
+  } else {
+    const appData =
+      process.env.APPDATA ||
+      (process.platform === 'darwin'
+        ? `${process.env.HOME}/Library/Application Support`
+        : `${process.env.HOME}/.config`);
+    dataDir = appData
+      ? path.join(appData, 'com.radar.quiz', 'data')
+      : path.join(process.cwd(), 'data');
+  }
 
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -13,22 +25,24 @@ function getDatabaseUrl(): string {
 
   const targetDbPath = path.join(dataDir, 'radar.db');
 
-  // Se o banco ainda não existe no AppData do usuário, copia o template inicial se disponível
+  // Se o banco ainda não existe no diretório de dados do usuário, copia o template inicial se disponível
   if (!fs.existsSync(targetDbPath)) {
-    const templatePath = path.join(process.cwd(), 'radar.db');
-    const prismaDirTemplate = path.join(process.cwd(), 'prisma', 'radar.db');
+    const templateCandidates = [
+      path.join(process.cwd(), 'radar.db'),
+      path.join(process.cwd(), 'prisma', 'radar.db'),
+      path.join(__dirname, 'radar.db'),
+      path.join(__dirname, 'prisma', 'radar.db'),
+    ];
 
-    if (fs.existsSync(templatePath)) {
-      try {
-        fs.copyFileSync(templatePath, targetDbPath);
-      } catch (err) {
-        console.error('Erro ao copiar template radar.db:', err);
-      }
-    } else if (fs.existsSync(prismaDirTemplate)) {
-      try {
-        fs.copyFileSync(prismaDirTemplate, targetDbPath);
-      } catch (err) {
-        console.error('Erro ao copiar prisma/radar.db:', err);
+    for (const candidate of templateCandidates) {
+      if (fs.existsSync(candidate)) {
+        try {
+          fs.copyFileSync(candidate, targetDbPath);
+          console.log(`Template radar.db copiado com sucesso de ${candidate} para ${targetDbPath}`);
+          break;
+        } catch (err) {
+          console.error(`Erro ao copiar template radar.db de ${candidate}:`, err);
+        }
       }
     }
   }

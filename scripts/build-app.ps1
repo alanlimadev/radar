@@ -57,9 +57,9 @@ if (-not (Test-Path $ModulesTarget)) { New-Item -ItemType Directory -Force -Path
 Copy-Item -Recurse (Join-Path $BackendDir "node_modules\@prisma") (Join-Path $ModulesTarget "@prisma") -Force
 Copy-Item -Recurse (Join-Path $BackendDir "node_modules\.prisma") (Join-Path $ModulesTarget ".prisma") -Force
 
-Write-Host "`n[5/5] Gerando Instalador Executável com Tauri..." -ForegroundColor Yellow
+Write-Host "`n[5/5] Gerando Instalador Executável com Tauri (NSIS)..." -ForegroundColor Yellow
 Set-Location $FrontendDir
-npx @tauri-apps/cli build
+npx @tauri-apps/cli build --bundles nsis
 
 Write-Host "`n✅ Build finalizado com sucesso!" -ForegroundColor Green
 Write-Host "O instalador .exe estará na pasta: offline-game-quiz\src-tauri\target\release\bundle\nsis\" -ForegroundColor Cyan

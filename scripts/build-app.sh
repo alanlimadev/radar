@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -e
+
+echo "========================================="
+echo "  RADAR - Compilação Desktop Linux (.deb & .AppImage)"
+echo "========================================="
+
+# Diretórios base
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+BACKEND_DIR="$ROOT_DIR/radar-tcc"
+FRONTEND_DIR="$ROOT_DIR/offline-game-quiz"
+SERVER_TARGET="$FRONTEND_DIR/src-tauri/server"
+
+# Localizar binário do Node.js no Linux
+NODE_PATH="$(which node || true)"
+if [ -z "$NODE_PATH" ]; then
+    echo "Erro: Node.js não foi encontrado no PATH do sistema."
+    exit 1
+fi
+
+echo -e "\n[1/6] Compilando Backend (radar-tcc)..."
+cd "$BACKEND_DIR"
+npm run build
+
+echo -e "\n[2/6] Gerando Prisma Engines para Linux..."
+npx prisma generate
+
+echo -e "\n[3/6] Gerando Bundle Standalone do Backend..."
+npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
+
+echo -e "\n[4/6] Compilando Frontend (offline-game-quiz)..."
+cd "$FRONTEND_DIR"
+npm run build
+
+echo -e "\n[5/6] Sincronizando arquivos do servidor embutido para Linux..."
+mkdir -p "$SERVER_TARGET"
+
+# Copiar binário do node linux e script principal
+cp "$NODE_PATH" "$SERVER_TARGET/node"
+chmod +x "$SERVER_TARGET/node"
+cp "$BACKEND_DIR/dist-bundle/index.js" "$SERVER_TARGET/index.js"
+
+# Copiar arquivos estáticos do frontend
+rm -rf "$SERVER_TARGET/client"
+cp -r "$FRONTEND_DIR/dist" "$SERVER_TARGET/client"
+
+# Copiar banco de dados template (obrigatório)
+# Prisma cria o radar.db em prisma/prisma/ ao rodar "prisma db push"
+DB_TEMPLATE=""
+if [ -f "$BACKEND_DIR/prisma/prisma/radar.db" ]; then
+    DB_TEMPLATE="$BACKEND_DIR/prisma/prisma/radar.db"
+elif [ -f "$BACKEND_DIR/prisma/radar.db" ]; then
+    DB_TEMPLATE="$BACKEND_DIR/prisma/radar.db"
+fi
+
+if [ -z "$DB_TEMPLATE" ]; then
+    echo "ERRO: radar.db não encontrado em prisma/ nem prisma/prisma/."
+    echo "Execute primeiro: cd radar-tcc && npx prisma db push"
+    exit 1
+fi
+
+cp "$DB_TEMPLATE" "$SERVER_TARGET/radar.db"
+echo "  radar.db copiado de: $DB_TEMPLATE"
+
+# Copiar bibliotecas do Prisma e engines
+MODULES_TARGET="$SERVER_TARGET/node_modules"
+mkdir -p "$MODULES_TARGET"
+rm -rf "$MODULES_TARGET/@prisma" "$MODULES_TARGET/.prisma"
+cp -r "$BACKEND_DIR/node_modules/@prisma" "$MODULES_TARGET/@prisma"
+cp -r "$BACKEND_DIR/node_modules/.prisma" "$MODULES_TARGET/.prisma"
+
+echo -e "\n[6/6] Gerando Pacotes Linux com Tauri (.deb e .AppImage)..."
+cd "$FRONTEND_DIR"
+npx @tauri-apps/cli build --bundles deb,appimage
+
+echo -e "\n✅ Build Linux finalizado com sucesso!"
+echo "Artefatos gerados em:"
+echo " - Debian (.deb): $FRONTEND_DIR/src-tauri/target/release/bundle/deb/"
+echo " - AppImage:      $FRONTEND_DIR/src-tauri/target/release/bundle/appimage/"
