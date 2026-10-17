@@ -94,6 +94,42 @@ Os pacotes serão gerados em:
 
 ---
 
+### Build Linux a partir do Windows / macOS (Docker)
+
+O Tauri **não cross-compila** de Windows para Linux. Para gerar os pacotes Linux a partir de uma máquina Windows/macOS (ou de um WSL sem as bibliotecas de sistema do Tauri), use o ambiente Docker versionado neste repositório.
+
+**Pré-requisito:** Docker Desktop instalado e **em execução**.
+
+**Windows (1 comando):**
+```powershell
+npm run build:app:linux:docker
+# ou, diretamente:
+.\scripts\build-app-docker.ps1
+# recriar a imagem após editar o Dockerfile:
+.\scripts\build-app-docker.ps1 -RebuildImage
+```
+
+**Linux / macOS:**
+```bash
+npm run build:app:linux:docker:sh
+# ou:
+REBUILD_IMAGE=1 ./scripts/build-app-docker.sh
+```
+
+**Como funciona:**
+1. Constrói (na primeira execução) a imagem `radar-linux-builder` — Ubuntu 24.04 + Rust + Node 22 + libs do Tauri — definida em `radar-tcc/scripts/linux-docker/Dockerfile`.
+2. Executa `radar-tcc/scripts/linux-docker/build-inner.sh` dentro do container, montando a raiz do workspace em `/src`.
+3. Devolve os pacotes para `offline-game-quiz/src-tauri/target/release/bundle/{deb,appimage}/`.
+
+**Notas:**
+- `build-inner.sh` gera os bundles `deb` e `appimage` em execuções separadas, para que uma falha em um não impeça o outro.
+- O AppImage é empacotado com `APPIMAGE_EXTRACT_AND_RUN=1`, portanto não exige FUSE.
+- O runtime Node embutido no pacote é o binário Linux (ELF) do container, e o Prisma gera o engine `debian-openssl-3.0.x`.
+- Arquivos relacionados: `radar-tcc/scripts/build-app-docker.ps1`, `radar-tcc/scripts/build-app-docker.sh`, `radar-tcc/scripts/linux-docker/Dockerfile`, `radar-tcc/scripts/linux-docker/build-inner.sh`.
+
+---
+
+
 ## 4. Como Executar no Linux
 
 ### Usando o `.AppImage` (Sem instalação):

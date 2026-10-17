@@ -9,6 +9,8 @@
     "build": "nest build",
     "build:app": "powershell -ExecutionPolicy Bypass -File ./scripts/build-app.ps1",
     "build:app:linux": "bash ./scripts/build-app.sh",
+    "build:app:linux:docker": "powershell -ExecutionPolicy Bypass -File ./scripts/build-app-docker.ps1",
+    "build:app:linux:docker:sh": "bash ./scripts/build-app-docker.sh",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

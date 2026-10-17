@@ -169,4 +169,5 @@ When tasked with generating, packaging, or modifying the standalone desktop inst
 2. **Build Execution:** Never build partial steps manually unless debugging. Use the root automation script `.\build-app.ps1`.
 3. **Database & Persistence:** The standalone runtime uses SQLite (`radar.db`) situated in `%APPDATA%\RADAR-Quiz\data\radar.db`. Do not hardcode database paths to relative directories.
 4. **Network & Hotspot:** The backend exposes `GET /rooms/network-ip` to auto-detect the host IP, prioritizing the Windows Mobile Hotspot adapter (`192.168.137.1`).
+5. **Linux Builds (`.deb` / `.AppImage`):** Tauri does not cross-compile from Windows to Linux. To produce Linux bundles, use the Docker environment in `scripts/linux-docker/` via `npm run build:app:linux:docker` (Windows) or `npm run build:app:linux:docker:sh` (Linux/macOS). Docker Desktop must be running. On a native Linux machine with Tauri system deps, `npm run build:app:linux` (`scripts/build-app.sh`) works directly. See [`docs/BUILD_EXECUTABLE.md`](./docs/BUILD_EXECUTABLE.md).
 

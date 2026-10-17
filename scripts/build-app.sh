@@ -17,6 +17,19 @@ SERVER_TARGET="$FRONTEND_DIR/src-tauri/server"
 NODE_PATH="$(which node || true)"
 if [ -z "$NODE_PATH" ]; then
     echo "Erro: Node.js não foi encontrado no PATH do sistema."
+    echo "Dica: se estiver no WSL e o 'node' resolver para o node.exe do Windows,"
+    echo "instale o Node.js Linux nativo ou use: npm run build:app:linux:docker"
+    exit 1
+fi
+
+# O binário embutido no bundle precisa ser um executável ELF Linux nativo.
+# No WSL, 'which node' pode resolver para /mnt/c/.../node.exe (interop), o que
+# geraria um pacote quebrado.
+if ! file "$NODE_PATH" 2>/dev/null | grep -q "ELF"; then
+    echo "Erro: o node do PATH não é um binário Linux nativo ($NODE_PATH)."
+    echo "Isso normalmente acontece no WSL usando o Node.js do Windows."
+    echo "Use um Node.js Linux nativo ou, para compilar via Docker:"
+    echo "  npm run build:app:linux:docker"
     exit 1
 fi
 
