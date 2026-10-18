@@ -59,6 +59,8 @@ npm install --no-audit --no-fund
 npm run build
 
 echo -e "\n[6/7] Montando o servidor embutido (node + index.js + client + radar.db + engines)..."
+# Limpa o staging para não arrastar artefatos de outro SO (ex.: node.exe do Windows)
+rm -rf "$SERVER"
 mkdir -p "$SERVER"
 cp "$(command -v node)" "$SERVER/node"
 chmod +x "$SERVER/node"

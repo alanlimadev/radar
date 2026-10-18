@@ -40,7 +40,9 @@ npm run build
 if ($LASTEXITCODE -ne 0) { throw "Erro ao compilar o frontend" }
 
 Write-Host "`n[4/5] Sincronizando arquivos do servidor embutido..." -ForegroundColor Yellow
-if (-not (Test-Path $ServerTarget)) { New-Item -ItemType Directory -Force -Path $ServerTarget | Out-Null }
+# Limpa o staging para não arrastar artefatos de outro SO (ex.: binário `node` do Linux)
+if (Test-Path $ServerTarget) { Remove-Item -Recurse -Force $ServerTarget }
+New-Item -ItemType Directory -Force -Path $ServerTarget | Out-Null
 
 Copy-Item $NodePath -Destination (Join-Path $ServerTarget "node.exe") -Force
 Copy-Item (Join-Path $BackendDir "dist-bundle\index.js") -Destination (Join-Path $ServerTarget "index.js") -Force
