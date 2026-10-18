@@ -25,21 +25,21 @@ if (-not $NodePath -or -not (Test-Path $NodePath)) {
     }
 }
 
-Write-Host "`n[1/5] Compilando Backend (radar-tcc)..." -ForegroundColor Yellow
+Write-Host "`n[1/6] Compilando Backend (radar-tcc)..." -ForegroundColor Yellow
 Set-Location $BackendDir
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "Erro ao compilar o backend" }
 
-Write-Host "`n[2/5] Gerando Bundle Standalone do Backend..." -ForegroundColor Yellow
+Write-Host "`n[2/6] Gerando Bundle Standalone do Backend..." -ForegroundColor Yellow
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
 if ($LASTEXITCODE -ne 0) { throw "Erro ao empacotar com ncc" }
 
-Write-Host "`n[3/5] Compilando Frontend (offline-game-quiz)..." -ForegroundColor Yellow
+Write-Host "`n[3/6] Compilando Frontend (offline-game-quiz)..." -ForegroundColor Yellow
 Set-Location $FrontendDir
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "Erro ao compilar o frontend" }
 
-Write-Host "`n[4/5] Sincronizando arquivos do servidor embutido..." -ForegroundColor Yellow
+Write-Host "`n[4/6] Sincronizando arquivos do servidor embutido..." -ForegroundColor Yellow
 # Limpa o staging para não arrastar artefatos de outro SO (ex.: binário `node` do Linux)
 if (Test-Path $ServerTarget) { Remove-Item -Recurse -Force $ServerTarget }
 New-Item -ItemType Directory -Force -Path $ServerTarget | Out-Null
@@ -59,9 +59,17 @@ if (-not (Test-Path $ModulesTarget)) { New-Item -ItemType Directory -Force -Path
 Copy-Item -Recurse (Join-Path $BackendDir "node_modules\@prisma") (Join-Path $ModulesTarget "@prisma") -Force
 Copy-Item -Recurse (Join-Path $BackendDir "node_modules\.prisma") (Join-Path $ModulesTarget ".prisma") -Force
 
-Write-Host "`n[5/5] Gerando Instalador Executável com Tauri (NSIS)..." -ForegroundColor Yellow
+Write-Host "`n[5/6] Gerando Instalador Executável com Tauri (NSIS)..." -ForegroundColor Yellow
 Set-Location $FrontendDir
 npx @tauri-apps/cli build --bundles nsis
+if ($LASTEXITCODE -ne 0) { throw "Erro ao gerar o instalador com o Tauri" }
+
+# Smoke test obrigatório: garante que o servidor embutido atende o SPA a partir de um
+# caminho com dot-dir (como o /tmp/.mount_XXXX do AppImage). Ver documentation/known-issues-and-regressions.md
+Write-Host "`n[6/6] Smoke test do servidor embutido (caminho com dot-dir)..." -ForegroundColor Yellow
+Set-Location $BackendDir
+powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "smoke-test-server.ps1") -ServerDir $ServerTarget
+if ($LASTEXITCODE -ne 0) { throw "Smoke test falhou: o servidor embutido nao atende /game corretamente" }
 
 Write-Host "`n✅ Build finalizado com sucesso!" -ForegroundColor Green
 Write-Host "O instalador .exe estará na pasta: offline-game-quiz\src-tauri\target\release\bundle\nsis\" -ForegroundColor Cyan

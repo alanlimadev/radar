@@ -24,7 +24,7 @@ echo "==========================================="
 rm -rf /build
 mkdir -p /build
 
-echo -e "\n[0/7] Copiando codigo (/src) para o filesystem Linux (/build, sem node_modules/target)..."
+echo -e "\n[0/8] Copiando codigo (/src) para o filesystem Linux (/build, sem node_modules/target)..."
 rsync -a \
   --exclude 'node_modules' --exclude 'target' --exclude 'dist' --exclude 'dist-bundle' \
   --exclude '.git' --exclude '.tanstack' --exclude 'gen' \
@@ -38,27 +38,27 @@ FRONTEND=/build/offline-game-quiz
 SERVER="$FRONTEND/src-tauri/server"
 OUT_BUNDLE=/src/offline-game-quiz/src-tauri/target/release/bundle
 
-echo -e "\n[1/7] Instalando dependencias do backend..."
+echo -e "\n[1/8] Instalando dependencias do backend..."
 cd "$BACKEND"
 npm install --no-audit --no-fund
 
-echo -e "\n[2/7] Compilando backend (nest build)..."
+echo -e "\n[2/8] Compilando backend (nest build)..."
 npm run build
 
-echo -e "\n[3/7] Gerando Prisma Client (engine Linux) + banco template (SQLite)..."
+echo -e "\n[3/8] Gerando Prisma Client (engine Linux) + banco template (SQLite)..."
 export DATABASE_URL="file:./radar.db"
 npx prisma generate
 npx prisma db push --skip-generate
 
-echo -e "\n[4/7] Gerando bundle standalone do backend (ncc)..."
+echo -e "\n[4/8] Gerando bundle standalone do backend (ncc)..."
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
 
-echo -e "\n[5/7] Instalando dependencias e compilando o frontend..."
+echo -e "\n[5/8] Instalando dependencias e compilando o frontend..."
 cd "$FRONTEND"
 npm install --no-audit --no-fund
 npm run build
 
-echo -e "\n[6/7] Montando o servidor embutido (node + index.js + client + radar.db + engines)..."
+echo -e "\n[6/8] Montando o servidor embutido (node + index.js + client + radar.db + engines)..."
 # Limpa o staging para não arrastar artefatos de outro SO (ex.: node.exe do Windows)
 rm -rf "$SERVER"
 mkdir -p "$SERVER"
@@ -75,7 +75,7 @@ cp -r "$BACKEND/node_modules/.prisma" "$SERVER/node_modules/.prisma"
 echo "  server/ montado:"
 ls -la "$SERVER"
 
-echo -e "\n[7/7] Gerando pacotes com o Tauri..."
+echo -e "\n[7/8] Gerando pacotes com o Tauri..."
 cd "$FRONTEND"
 # Bundles executados separadamente para isolar falhas (ex.: AppImage/FUSE).
 echo "--- Bundle: deb ---"
@@ -89,5 +89,17 @@ cp "$FRONTEND/src-tauri/target/release/bundle/deb/"*.deb          "$OUT_BUNDLE/d
 cp "$FRONTEND/src-tauri/target/release/bundle/appimage/"*.AppImage "$OUT_BUNDLE/appimage/" 2>/dev/null || true
 echo "  deb:";      ls -la "$OUT_BUNDLE/deb"      || true
 echo "  appimage:"; ls -la "$OUT_BUNDLE/appimage" || true
+
+# Smoke test obrigatorio: valida os pacotes gerados a partir de um caminho com dot-dir
+# (como o /tmp/.mount_XXXX do AppImage). Ver documentation/known-issues-and-regressions.md
+echo -e "\n[8/8] Smoke test dos pacotes (.deb + .AppImage) em caminho com dot-dir..."
+DEB_ARTIFACT=("$OUT_BUNDLE/deb/"*.deb)
+APP_ARTIFACT=("$OUT_BUNDLE/appimage/"*.AppImage)
+if [ ! -f "${DEB_ARTIFACT[0]}" ] || [ ! -f "${APP_ARTIFACT[0]}" ]; then
+  echo "!!! ARTEFATOS AUSENTES (deb=${DEB_ARTIFACT[0]:-?} appimage=${APP_ARTIFACT[0]:-?}) - build incompleto !!!"
+  exit 1
+fi
+bash /opt/build/smoke-test-linux.sh "${DEB_ARTIFACT[0]}" "${APP_ARTIFACT[0]}" \
+  || { echo "!!! SMOKE TEST FALHOU - NAO publique estes artefatos !!!"; exit 1; }
 
 echo "DONE"
