@@ -35,8 +35,8 @@ O sistema foi desenhado para que qualquer usuário leigo (professores, instrutor
 ### Principais Invariantes:
 1. **Zero dependência externa na máquina final**: O executável inclui seu próprio runtime do Node.js (`node.exe` no Windows ou `node` no Linux), as engines nativas do Prisma e todo o frontend estático.
 2. **Porta única (3333)**: Tanto o backend quanto a interface web dos celulares dos alunos utilizam exclusivamente a porta `3333`.
-3. **Persistência Segura**: O banco SQLite (`radar.db`) é mantido no diretório de dados do usuário (`%APPDATA%` no Windows ou `~/.config` no Linux), garantindo que atualizações do executável não apaguem os dados.
-4. **Logs automáticos**: O servidor redireciona toda sua saída para a pasta de logs do aplicativo (`radar-server.log`).
+3. **Persistência Segura**: O banco SQLite (`radar.db`) é mantido no diretório de dados do usuário: `%APPDATA%\com.radar.quiz\data\` no Windows ou `~/.local/share/com.radar.quiz/data/` no Linux, garantindo que atualizações do executável não apaguem os dados.
+4. **Logs automáticos**: O servidor redireciona toda sua saída para a pasta de logs do aplicativo (`%APPDATA%\com.radar.quiz\logs\radar-server.log` no Windows; `~/.local/share/com.radar.quiz/logs/radar-server.log` no Linux).
 
 ---
 
@@ -177,12 +177,16 @@ npm run build
 ```
 
 ### Passo 4.4: Sincronizar os Recursos do Servidor Embutido
-Os arquivos compilados são organizados na pasta `offline-game-quiz/src-tauri/server/`:
+Os arquivos compilados são organizados na pasta `offline-game-quiz/src-tauri/server/` (**o staging é limpo antes de montar**, para não arrastar o binário do outro SO):
 - `node.exe`: Copiado de `C:\Program Files\nodejs\node.exe` (ou runtime redistribuível).
 - `index.js`: Copiado de `radar-tcc/dist-bundle/index.js`.
-- `client/`: Copiado de `offline-game-quiz/dist/` (entregue pelo `@nestjs/serve-static`).
+- `client/`: Copiado de `offline-game-quiz/dist/` (servido por `app.useStaticAssets` + `SpaFallbackFilter` — **não** mais pelo `@nestjs/serve-static`, que quebrava em caminhos com dot-dir; ver `documentation/spa-fallback-404-appimage.md`).
 - `radar.db`: Copiado de `radar-tcc/prisma/radar.db` (template com schema SQLite).
 - `node_modules/`: Copia as pastas `@prisma` e `.prisma` com o `query_engine-windows.dll.node`.
+
+> **Atenção:** o staging `src-tauri/server/` é compartilhado entre o build Windows e o Linux.
+> Sempre limpe-o antes de copiar (os scripts já fazem isso) para não embutir `node.exe` no
+> pacote Linux nem `node` no pacote Windows.
 
 ### Passo 4.5: Gerar o Instalador com o Tauri
 Dentro de `offline-game-quiz`:
@@ -216,3 +220,51 @@ O Tauri compilará o binário Rust (`app.exe`), empacotará a pasta `server/` co
 3. **Bloqueio de Conexão no Celular**:
    - Certifique-se de que o Hotspot do Windows está ativo e os celulares estão conectados nele.
    - Caso o Windows Firewall solicite permissão na primeira execução do app, selecione **Permitir em Redes Privadas**.
+4. **Somente no Linux: `/` abre, mas `/game` / `/loginScreen` dão 404 (JSON "Not Found")**:
+   - É o bug de *dot-dir* do `res.sendFile` (o AppImage monta em `/tmp/.mount_XXXX`). Se o
+     código-fonte já tem a correção, provavelmente você está rodando um pacote antigo.
+   - Confira qual build está em execução: `md5sum /proc/<PID>/cwd/index.js` (o PID vem de
+     `ss -ltnp | grep 3333`) e compare com o `index.js` interno do pacote novo. Encerre o app
+     antigo (`pkill -f RADAR-Quiz`) e confirme que a porta 3333 ficou livre antes de reabrir.
+   - Detalhes: `documentation/spa-fallback-404-appimage.md`.
+
+---
+
+## 7. Verificação Obrigatória (Smoke Tests)
+
+Os builds já executam smoke tests automaticamente ao final; se falharem, **o build falha e os
+artefatos não devem ser publicados**. Eles existem porque alguns bugs só aparecem no pacote
+final (ex.: 404 do SPA em caminhos com dot-dir).
+
+### Windows (`scripts/smoke-test-server.ps1`)
+
+Executado ao final de `npm run build:app`. Manualmente:
+
+```powershell
+powershell -File radar-tcc/scripts/smoke-test-server.ps1 -ServerDir offline-game-quiz/src-tauri/server
+```
+
+Copia o servidor embutido para um caminho com **dot-dir** (`.mount_RADAR-smoke`), sobe o
+servidor e exige: `/`, `/game`, `/game?sessionId=1`, `/loginScreen`, rota aleatória → **200**;
+`/quizzes` → **401**; e `/game` devolvendo o HTML do client.
+
+> Usa a porta fixa **3333** — feche o app antes de rodar.
+
+### Linux (`scripts/linux-docker/smoke-test-linux.sh`)
+
+Executado ao final de `npm run build:app:linux:docker` (dentro do container). Manualmente:
+
+```bash
+docker run --rm -w / \
+  -v "<workspace>/offline-game-quiz/src-tauri/target/release/bundle:/b:ro" \
+  -v "<workspace>/radar-tcc/scripts/linux-docker:/s:ro" \
+  radar-linux-builder:latest \
+  bash /s/smoke-test-linux.sh /b/deb/*.deb /b/appimage/*.AppImage
+```
+
+Extrai cada pacote para um dot-dir, valida as mesmas rotas **e** confirma que não há
+`node.exe` (binário do Windows) embutido.
+
+### Checklist completo
+
+Ver `documentation/release-checklist.md`.
