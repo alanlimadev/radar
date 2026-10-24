@@ -262,6 +262,7 @@ docker run --rm -w / \
   bash /s/smoke-test-linux.sh /b/deb/*.deb /b/appimage/*.AppImage
 ```
 
+Usa sempre o artefato mais recente de cada pasta (pode haver builds antigos no `bundle/`).
 Extrai cada pacote para um dot-dir, valida as mesmas rotas **e** confirma que não há
 `node.exe` (binário do Windows) embutido.
 

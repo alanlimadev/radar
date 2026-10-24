@@ -58,6 +58,10 @@ Ao final roda automaticamente (`scripts/linux-docker/smoke-test-linux.sh`):
 
 Artefatos em `offline-game-quiz/src-tauri/target/release/bundle/{deb,appimage}/`.
 
+> A pasta `bundle/` pode conter pacotes de builds antigos (ex.: `1.0.0` ao lado de `1.1.0`).
+> O smoke test valida sempre o arquivo **mais recente** de cada pasta; confira no log qual
+> caminho foi testado e publique somente a versão da tag.
+
 ### Reset opcional do banco no instalador Windows
 
 O instalador NSIS (`src-tauri/windows/hooks.nsh`) pergunta se o usuário quer apagar o banco

@@ -90,16 +90,18 @@ cp "$FRONTEND/src-tauri/target/release/bundle/appimage/"*.AppImage "$OUT_BUNDLE/
 echo "  deb:";      ls -la "$OUT_BUNDLE/deb"      || true
 echo "  appimage:"; ls -la "$OUT_BUNDLE/appimage" || true
 
-# Smoke test obrigatorio: valida os pacotes gerados a partir de um caminho com dot-dir
+# Smoke test obrigatorio: valida os pacotes gerados a partir de um caminho com dot-di
 # (como o /tmp/.mount_XXXX do AppImage). Ver documentation/known-issues-and-regressions.md
 echo -e "\n[8/8] Smoke test dos pacotes (.deb + .AppImage) em caminho com dot-dir..."
-DEB_ARTIFACT=("$OUT_BUNDLE/deb/"*.deb)
-APP_ARTIFACT=("$OUT_BUNDLE/appimage/"*.AppImage)
-if [ ! -f "${DEB_ARTIFACT[0]}" ] || [ ! -f "${APP_ARTIFACT[0]}" ]; then
-  echo "!!! ARTEFATOS AUSENTES (deb=${DEB_ARTIFACT[0]:-?} appimage=${APP_ARTIFACT[0]:-?}) - build incompleto !!!"
+# A pasta de bundle pode conter artefatos de builds anteriores (ex.: 1.0.0).
+# Validar sempre o mais recente, senao o smoke test aprova o pacote antigo.
+DEB_ARTIFACT=$(ls -1t "$OUT_BUNDLE/deb/"*.deb 2>/dev/null | head -n 1 || true)
+APP_ARTIFACT=$(ls -1t "$OUT_BUNDLE/appimage/"*.AppImage 2>/dev/null | head -n 1 || true)
+if [ -z "$DEB_ARTIFACT" ] || [ -z "$APP_ARTIFACT" ]; then
+  echo "!!! ARTEFATOS AUSENTES (deb=${DEB_ARTIFACT:-?} appimage=${APP_ARTIFACT:-?}) - build incompleto !!!"
   exit 1
 fi
-bash /opt/build/smoke-test-linux.sh "${DEB_ARTIFACT[0]}" "${APP_ARTIFACT[0]}" \
+bash /opt/build/smoke-test-linux.sh "$DEB_ARTIFACT" "$APP_ARTIFACT" \
   || { echo "!!! SMOKE TEST FALHOU - NAO publique estes artefatos !!!"; exit 1; }
 
 echo "DONE"
