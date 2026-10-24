@@ -136,6 +136,11 @@ npx prisma studio                              # Web UI for database inspection
 docker compose up --build -d # Launch Postgres + API containers
 docker compose logs -f       # Stream container logs
 docker compose down          # Stop all containers
+
+# Desktop Application Build (Standalone .exe)
+# Always refer to docs/BUILD_EXECUTABLE.md for complete details
+npm run build:app            # Run from radar-tcc to compile all and build RADAR-Quiz_1.0.0_x64-setup.exe
+# Or: .\build-app.ps1 from workspace root
 ```
 
 ---
@@ -153,3 +158,18 @@ docker compose down          # Stop all containers
   - `fix(quiz): ensure accurate score calculation on late submissions`
   - `docs(api): update room controller swagger annotations`
   - `test(core): add edge-case tests for pin collision resolution`
+
+---
+
+## 7. Desktop Executable Build Workflow
+
+When tasked with generating, packaging, or modifying the standalone desktop installer (`.exe`):
+
+1. **Mandatory Documentation:** Always read and follow [`docs/BUILD_EXECUTABLE.md`](./docs/BUILD_EXECUTABLE.md). It contains the complete architectural specification, Tauri sidecar configuration, SQLite AppData paths, and diagnostic steps.
+2. **Build Execution:** Never build partial steps manually unless debugging. Use the root automation script `.\build-app.ps1`.
+3. **Database & Persistence:** The standalone runtime uses SQLite (`radar.db`) in the per-user app data dir (`%APPDATA%\com.radar.quiz\data\radar.db` on Windows, `~/.local/share/com.radar.quiz/data/radar.db` on Linux). The template DB shipped in the bundle is copied only when the user DB does not exist. On startup, `PrismaService` validates the expected tables/columns via `REQUIRED_SCHEMA`; if the DB is incompatible (from an older version or corrupt) it is backed up as `radar.db.bak-<timestamp>` and recreated from the template, avoiding `500 Internal server error` (Prisma `P2021`/`P2022`). When changing `prisma/schema.prisma`, update `REQUIRED_SCHEMA` in `src/prisma/prisma.service.ts`. Do not hardcode database paths to relative directories.
+4. **Network & Hotspot:** The backend exposes `GET /rooms/network-ip` to auto-detect the host IP, prioritizing the Windows Mobile Hotspot adapter (`192.168.137.1`).
+5. **Linux Builds (`.deb` / `.AppImage`):** Tauri does not cross-compile from Windows to Linux. To produce Linux bundles, use the Docker environment in `scripts/linux-docker/` via `npm run build:app:linux:docker` (Windows) or `npm run build:app:linux:docker:sh` (Linux/macOS). Docker Desktop must be running. On a native Linux machine with Tauri system deps, `npm run build:app:linux` (`scripts/build-app.sh`) works directly. See [`docs/BUILD_EXECUTABLE.md`](./docs/BUILD_EXECUTABLE.md).
+6. **SPA fallback (dot-dir invariant):** the SPA `index.html` must be served with a **relative** path plus `{ root }` — `res.sendFile('index.html', { root })` — never with an absolute path. The Express `send` module rejects any path containing a `.`-prefixed component (dotfile/dot-dir), and the AppImage mounts the app under `/tmp/.mount_XXXX`, which caused `404` on `/game` and every deep link. Do **not** reintroduce `@nestjs/serve-static` for the SPA fallback; it is handled by `SpaFallbackFilter` (`src/core/http/spa-fallback.filter.ts`) plus `app.useStaticAssets()` in `src/main.ts`. See [`documentation/spa-fallback-404-appimage.md`](./documentation/spa-fallback-404-appimage.md).
+7. **Mandatory smoke tests:** every desktop build runs a smoke test that boots the bundled server from a dot-dir and asserts `/`, `/game`, `/loginScreen` and a random route return `200` with the client HTML (`/quizzes` must stay `401`). The Linux one also asserts no Windows `node.exe` is embedded. They run automatically at the end of `scripts/build-app.ps1` and `scripts/linux-docker/build-inner.sh`; a failure must block publishing. Before publishing, follow [`documentation/release-checklist.md`](./documentation/release-checklist.md) and check [`documentation/known-issues-and-regressions.md`](./documentation/known-issues-and-regressions.md) so a fixed bug does not ship again.
+

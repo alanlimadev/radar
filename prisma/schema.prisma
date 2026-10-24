@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-    provider = "postgresql"
+    provider = "sqlite"
     url      = env("DATABASE_URL")
 }
 
@@ -29,8 +29,8 @@ model GameRoom {
     hostId    String
     host      Host         @relation(fields: [hostId], references: [id])
     status    String       @default("LOBBY") // LOBBY, IN_PROGRESS, FINISHED
-    config    Json         @default("{}")
-    results   Json?
+    config    String       @default("{}") // JSON serializado como String no SQLite
+    results   String?      // JSON serializado como String no SQLite
     startedAt DateTime     @default(now())
     endedAt   DateTime?
     players   RoomPlayer[]
@@ -44,7 +44,7 @@ model RoomPlayer {
     roomId   String
     room     GameRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
     score    Int      @default(0)
-    metadata Json?
+    metadata String?  // JSON serializado como String no SQLite
     joinedAt DateTime @default(now())
 
     @@map("room_players")

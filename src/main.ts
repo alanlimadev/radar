@@ -1,10 +1,14 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { AppModule } from './app.module';
+import { SpaFallbackFilter } from './core/http/spa-fallback.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: {
       origin: true,
       credentials: true,
@@ -14,6 +18,28 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
   );
+
+  // Entrega os arquivos estaticos do client e o fallback do SPA (deep links
+  // como /game e /loginScreen). Ver SpaFallbackFilter para o motivo de nao
+  // usarmos o @nestjs/serve-static.
+  const clientPath = join(process.cwd(), 'client');
+  if (existsSync(join(clientPath, 'index.html'))) {
+    app.useStaticAssets(clientPath);
+    app.useGlobalFilters(new SpaFallbackFilter(clientPath));
+  }
+
+  app.use((req: any, res: any, next: any) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      if (res.statusCode >= 400) {
+        console.error(`[HTTP ERROR] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`);
+      } else {
+        console.log(`[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`);
+      }
+    });
+    next();
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Kahoot Offline API')

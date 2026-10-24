@@ -1,7 +1,13 @@
 # compiled output
 /dist
+/dist-bundle
+/client
 /node_modules
 /build
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Logs
 logs

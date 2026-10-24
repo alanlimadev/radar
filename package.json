@@ -7,6 +7,10 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "build:app": "powershell -ExecutionPolicy Bypass -File ./scripts/build-app.ps1",
+    "build:app:linux": "bash ./scripts/build-app.sh",
+    "build:app:linux:docker": "powershell -ExecutionPolicy Bypass -File ./scripts/build-app-docker.ps1",
+    "build:app:linux:docker:sh": "bash ./scripts/build-app-docker.sh",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -26,6 +30,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.3",
     "@nestjs/platform-socket.io": "^11.1.3",
+    "@nestjs/serve-static": "^5.0.5",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/websockets": "^11.1.6",
     "@prisma/client": "^6.12.0",
