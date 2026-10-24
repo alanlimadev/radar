@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -167,9 +168,48 @@ export class QuizService {
   ) {
     await this.assertQuestionOwnership(questionId, userId);
 
-    return this.repo.question.update({
-      where: { id: questionId },
-      data: { text: data.text },
+    if (!data.alternatives) {
+      return this.repo.question.update({
+        where: { id: questionId },
+        data: { text: data.text },
+      });
+    }
+
+    const alternatives = data.alternatives;
+    const existing = await this.repo.alternative.findMany({
+      where: { questionId },
+      select: { id: true },
+    });
+    const existingIds = new Set(existing.map((alt) => alt.id));
+    const payloadIds = alternatives.map((alt) => alt.id);
+
+    if (
+      payloadIds.length !== existingIds.size ||
+      new Set(payloadIds).size !== payloadIds.length ||
+      payloadIds.some((id) => !existingIds.has(id))
+    ) {
+      throw new BadRequestException(
+        'As alternativas informadas não pertencem a esta pergunta.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.question.update({
+        where: { id: questionId },
+        data: { text: data.text },
+      });
+
+      for (const alt of alternatives) {
+        await tx.alternative.update({
+          where: { id: alt.id },
+          data: { text: alt.text, isCorrect: alt.isCorrect },
+        });
+      }
+
+      return tx.question.findUnique({
+        where: { id: questionId },
+        include: { alternatives: true },
+      });
     });
   }
 
