@@ -156,9 +156,10 @@ export class RoomManagerService {
       }
       this.logger.log(`🔄 Jogador "${player.name}" reconectou na sala [${room.code}]`);
     } else {
-      // Novo Jogador
-      if (room.status !== 'LOBBY' && room.status !== 'IN_PROGRESS') {
-        throw new BadRequestException('A sala não está aberta para novos jogadores.');
+      // Novo Jogador: só pode entrar enquanto a sala está no lobby.
+      // Reconexões de jogadores já cadastrados continuam permitidas.
+      if (room.status !== 'LOBBY') {
+        throw new BadRequestException('Sessão já iniciada.');
       }
 
       player = {
