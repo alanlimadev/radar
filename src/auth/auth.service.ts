@@ -28,17 +28,19 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
-    let user: { id: string; name: string; username: string };
+    let user: { id: string; username: string };
     try {
       user = await this.prisma.host.create({
         data: {
-          name: data.name.trim(),
+          // O host não possui mais um nome de exibição separado: o username
+          // é usado em toda a aplicação. A coluna `name` é mantida por
+          // compatibilidade com o schema e recebe o próprio username.
+          name: username,
           username,
           passwordHash,
         },
         select: {
           id: true,
-          name: true,
           username: true,
         },
       });
@@ -86,7 +88,6 @@ export class AuthService {
       access_token,
       user: {
         id: user.id,
-        name: user.name,
         username: user.username,
       },
     };
@@ -97,7 +98,6 @@ export class AuthService {
       where: { id: userId },
       select: {
         id: true,
-        name: true,
         username: true,
       },
     });

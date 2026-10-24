@@ -25,16 +25,14 @@ describe('AuthService — login por username', () => {
   });
 
   describe('register', () => {
-    it('normaliza o username para minúsculo e sem espaços', async () => {
+    it('normaliza o username e usa ele como nome de exibição', async () => {
       prisma.host.findUnique.mockResolvedValue(null);
       prisma.host.create.mockResolvedValue({
         id: 'host-1',
-        name: 'Alan Lima',
         username: 'alan.lima',
       });
 
       const result = await service.register({
-        name: ' Alan Lima ',
         username: '  Alan.Lima  ',
         password: 'senha123',
       });
@@ -45,7 +43,7 @@ describe('AuthService — login por username', () => {
       expect(prisma.host.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            name: 'Alan Lima',
+            name: 'alan.lima',
             username: 'alan.lima',
           }),
         }),
@@ -56,9 +54,9 @@ describe('AuthService — login por username', () => {
       });
       expect(result.user).toEqual({
         id: 'host-1',
-        name: 'Alan Lima',
         username: 'alan.lima',
       });
+      expect(result.user).not.toHaveProperty('name');
       expect(result.user).not.toHaveProperty('email');
     });
 
@@ -67,7 +65,6 @@ describe('AuthService — login por username', () => {
 
       await expect(
         service.register({
-          name: 'Alan',
           username: 'alan',
           password: 'senha123',
         }),
@@ -80,7 +77,6 @@ describe('AuthService — login por username', () => {
 
       await expect(
         service.register({
-          name: 'Alan',
           username: 'alan',
           password: 'senha123',
         }),
@@ -89,10 +85,9 @@ describe('AuthService — login por username', () => {
   });
 
   describe('login', () => {
-    it('busca pelo username normalizado e retorna o usuário sem e-mail', async () => {
+    it('busca pelo username normalizado e retorna id e username', async () => {
       prisma.host.findUnique.mockResolvedValue({
         id: 'host-1',
-        name: 'Alan',
         username: 'alan',
         passwordHash: 'hashed-password',
       });
@@ -109,7 +104,6 @@ describe('AuthService — login por username', () => {
       expect(result.access_token).toBe('signed-jwt');
       expect(result.user).toEqual({
         id: 'host-1',
-        name: 'Alan',
         username: 'alan',
       });
     });
@@ -125,7 +119,6 @@ describe('AuthService — login por username', () => {
     it('rejeita senha incorreta com 401', async () => {
       prisma.host.findUnique.mockResolvedValue({
         id: 'host-1',
-        name: 'Alan',
         username: 'alan',
         passwordHash: 'hashed-password',
       });
@@ -137,10 +130,9 @@ describe('AuthService — login por username', () => {
     });
   });
 
-  it('validateUser retorna id, name e username', async () => {
+  it('validateUser retorna id e username', async () => {
     prisma.host.findUnique.mockResolvedValue({
       id: 'host-1',
-      name: 'Alan',
       username: 'alan',
     });
 
@@ -148,7 +140,7 @@ describe('AuthService — login por username', () => {
 
     expect(prisma.host.findUnique).toHaveBeenCalledWith({
       where: { id: 'host-1' },
-      select: { id: true, name: true, username: true },
+      select: { id: true, username: true },
     });
   });
 });
