@@ -59,23 +59,29 @@ cp "$BACKEND_DIR/dist-bundle/index.js" "$SERVER_TARGET/index.js"
 rm -rf "$SERVER_TARGET/client"
 cp -r "$FRONTEND_DIR/dist" "$SERVER_TARGET/client"
 
-# Copiar banco de dados template (obrigatório)
-# Prisma cria o radar.db em prisma/prisma/ ao rodar "prisma db push"
-DB_TEMPLATE=""
-if [ -f "$BACKEND_DIR/prisma/prisma/radar.db" ]; then
-    DB_TEMPLATE="$BACKEND_DIR/prisma/prisma/radar.db"
-elif [ -f "$BACKEND_DIR/prisma/radar.db" ]; then
-    DB_TEMPLATE="$BACKEND_DIR/prisma/radar.db"
-fi
+# Gera sempre um template vazio e limpo (nunca empacota o banco de desenvolvimento).
+TEMPLATE_DIR="$BACKEND_DIR/prisma/build"
+TEMPLATE_DB="$TEMPLATE_DIR/radar.db"
+mkdir -p "$TEMPLATE_DIR"
+rm -f "$TEMPLATE_DB"
 
-if [ -z "$DB_TEMPLATE" ]; then
-    echo "ERRO: radar.db não encontrado em prisma/ nem prisma/prisma/."
-    echo "Execute primeiro: cd radar-tcc && npx prisma db push"
+cd "$BACKEND_DIR"
+OLD_DATABASE_URL="${DATABASE_URL-}"
+export DATABASE_URL="file:./build/radar.db"
+npx prisma db push --skip-generate
+if [ ! -f "$TEMPLATE_DB" ]; then
+    echo "ERRO: falha ao gerar o banco template vazio."
     exit 1
 fi
+if [ -n "$OLD_DATABASE_URL" ]; then
+    export DATABASE_URL="$OLD_DATABASE_URL"
+else
+    unset DATABASE_URL
+fi
 
-cp "$DB_TEMPLATE" "$SERVER_TARGET/radar.db"
-echo "  radar.db copiado de: $DB_TEMPLATE"
+cp "$TEMPLATE_DB" "$SERVER_TARGET/radar.db"
+echo "  radar.db vazio gerado em: $TEMPLATE_DB"
+cd "$FRONTEND_DIR"
 
 # Copiar bibliotecas do Prisma e engines
 MODULES_TARGET="$SERVER_TARGET/node_modules"

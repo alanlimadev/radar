@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto, LoginDto } from './dtos';
+import { RegisterDto, LoginDto, normalizeUsername } from './dtos';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -16,30 +16,41 @@ export class AuthService {
   ) {}
 
   async register(data: RegisterDto) {
+    const username = normalizeUsername(data.username) as string;
+
     const existingUser = await this.prisma.host.findUnique({
-      where: { email: data.email },
+      where: { username },
     });
 
     if (existingUser) {
-      throw new ConflictException('Email já está em uso');
+      throw new ConflictException('Nome de usuário já está em uso');
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
-    const user = await this.prisma.host.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        passwordHash,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-    });
+    let user: { id: string; name: string; username: string };
+    try {
+      user = await this.prisma.host.create({
+        data: {
+          name: data.name.trim(),
+          username,
+          passwordHash,
+        },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+        },
+      });
+    } catch (error) {
+      // Corrida entre dois cadastros com o mesmo username.
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('Nome de usuário já está em uso');
+      }
+      throw error;
+    }
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, username: user.username };
     const access_token = this.jwtService.sign(payload);
 
     return {
@@ -49,12 +60,14 @@ export class AuthService {
   }
 
   async login(data: LoginDto) {
+    const username = normalizeUsername(data.username) as string;
+
     const user = await this.prisma.host.findUnique({
-      where: { email: data.email },
+      where: { username },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException('Usuário ou senha inválidos');
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -63,10 +76,10 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException('Usuário ou senha inválidos');
     }
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, username: user.username };
     const access_token = this.jwtService.sign(payload);
 
     return {
@@ -74,7 +87,7 @@ export class AuthService {
       user: {
         id: user.id,
         name: user.name,
-        email: user.email,
+        username: user.username,
       },
     };
   }
@@ -85,7 +98,7 @@ export class AuthService {
       select: {
         id: true,
         name: true,
-        email: true,
+        username: true,
       },
     });
 

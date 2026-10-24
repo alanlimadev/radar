@@ -7,13 +7,13 @@ import {
   Body,
   Param,
   BadRequestException,
-  NotFoundException,
   UseGuards,
   Request,
 } from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { Request as ExpressRequest } from 'express';
 import {
   CreateQuizDto,
   UpdateQuizDto,
@@ -23,7 +23,15 @@ import {
   UpdateAlternativeDto,
 } from './dtos';
 
-function validateAlternatives(alternatives: any[]) {
+interface AuthenticatedRequest extends ExpressRequest {
+  user: {
+    id: string;
+    name: string;
+    username: string;
+  };
+}
+
+function validateAlternatives(alternatives: CreateAlternativeDto[]) {
   if (!Array.isArray(alternatives) || alternatives.length !== 4) {
     throw new BadRequestException(
       'Cada pergunta deve ter exatamente 4 alternativas.',
@@ -47,7 +55,10 @@ export class QuizController {
   @Post()
   @ApiBody({ type: CreateQuizDto })
   @ApiResponse({ status: 201, description: 'Quiz criado com sucesso.' })
-  createQuiz(@Body() data: CreateQuizDto, @Request() req) {
+  createQuiz(
+    @Body() data: CreateQuizDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
     if (data.questions) {
       data.questions.forEach((q) => {
         validateAlternatives(q.alternatives);
@@ -60,15 +71,16 @@ export class QuizController {
   }
 
   @Get()
-  @ApiResponse({ status: 200, description: 'Lista todos os quizzes.' })
-  findAllQuizzes() {
-    return this.quizService.findAllQuizzes();
+  @ApiResponse({ status: 200, description: 'Lista os quizzes do usuário.' })
+  findAllQuizzes(@Request() req: AuthenticatedRequest) {
+    return this.quizService.findAllQuizzes(req.user.id);
   }
 
   @Get(':id')
   @ApiResponse({ status: 200, description: 'Retorna um quiz pelo ID.' })
-  findQuizById(@Param('id') id: string) {
-    return this.quizService.findQuizById(id);
+  @ApiResponse({ status: 403, description: 'Quiz de outro usuário.' })
+  findQuizById(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.quizService.findQuizByIdForUser(id, req.user.id);
   }
 
   @Put(':id')
@@ -77,14 +89,14 @@ export class QuizController {
   updateQuiz(
     @Param('id') id: string,
     @Body() data: UpdateQuizDto,
-    @Request() req,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.quizService.updateQuiz(id, data, req.user.id);
   }
 
   @Delete(':id')
   @ApiResponse({ status: 200, description: 'Quiz deletado com sucesso.' })
-  deleteQuiz(@Param('id') id: string, @Request() req) {
+  deleteQuiz(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.quizService.deleteQuiz(id, req.user.id);
   }
 
@@ -94,9 +106,10 @@ export class QuizController {
   async addQuestion(
     @Param('quizId') quizId: string,
     @Body() data: CreateQuestionDto,
+    @Request() req: AuthenticatedRequest,
   ) {
     validateAlternatives(data.alternatives);
-    return this.quizService.addQuestion(quizId, data);
+    return this.quizService.addQuestion(quizId, data, req.user.id);
   }
 
   @Put('questions/:questionId')
@@ -105,17 +118,21 @@ export class QuizController {
   async updateQuestion(
     @Param('questionId') questionId: string,
     @Body() data: UpdateQuestionDto,
+    @Request() req: AuthenticatedRequest,
   ) {
     if (data.alternatives) {
       validateAlternatives(data.alternatives);
     }
-    return this.quizService.updateQuestion(questionId, data);
+    return this.quizService.updateQuestion(questionId, data, req.user.id);
   }
 
   @Delete('questions/:questionId')
   @ApiResponse({ status: 200, description: 'Pergunta deletada.' })
-  deleteQuestion(@Param('questionId') questionId: string) {
-    return this.quizService.deleteQuestion(questionId);
+  deleteQuestion(
+    @Param('questionId') questionId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.quizService.deleteQuestion(questionId, req.user.id);
   }
 
   @Post('questions/:questionId/alternatives')
@@ -127,9 +144,12 @@ export class QuizController {
   async addAlternative(
     @Param('questionId') questionId: string,
     @Body() data: CreateAlternativeDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    const alternatives =
-      await this.quizService.getAlternativesByQuestion(questionId);
+    const alternatives = await this.quizService.getAlternativesByQuestion(
+      questionId,
+      req.user.id,
+    );
     if (alternatives.length >= 4) {
       throw new BadRequestException(
         'Cada pergunta deve ter exatamente 4 alternativas.',
@@ -147,7 +167,7 @@ export class QuizController {
         'Exatamente uma alternativa deve ser correta.',
       );
     }
-    return this.quizService.addAlternative(questionId, data);
+    return this.quizService.addAlternative(questionId, data, req.user.id);
   }
 
   @Put('alternatives/:alternativeId')
@@ -156,15 +176,17 @@ export class QuizController {
   async updateAlternative(
     @Param('alternativeId') alternativeId: string,
     @Body() data: UpdateAlternativeDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    const alternative =
-      await this.quizService.getAlternativeById(alternativeId);
-    if (!alternative) {
-      throw new NotFoundException('Alternativa não encontrada');
-    }
+    const alternative = await this.quizService.getAlternativeById(
+      alternativeId,
+      req.user.id,
+    );
     const { questionId } = alternative;
-    const alternatives =
-      await this.quizService.getAlternativesByQuestion(questionId);
+    const alternatives = await this.quizService.getAlternativesByQuestion(
+      questionId,
+      req.user.id,
+    );
     let correctCount = alternatives.filter((a) => a.isCorrect).length;
     const current = alternatives.find((a) => a.id === alternativeId);
     if (current && current.isCorrect !== data.isCorrect) {
@@ -175,25 +197,29 @@ export class QuizController {
         'Exatamente uma alternativa deve ser correta.',
       );
     }
-    return this.quizService.updateAlternative(alternativeId, data);
+    return this.quizService.updateAlternative(alternativeId, data, req.user.id);
   }
 
   @Delete('alternatives/:alternativeId')
   @ApiResponse({ status: 200, description: 'Alternativa deletada.' })
-  async deleteAlternative(@Param('alternativeId') alternativeId: string) {
-    const alternative =
-      await this.quizService.getAlternativeById(alternativeId);
-    if (!alternative) {
-      throw new NotFoundException('Alternativa não encontrada');
-    }
+  async deleteAlternative(
+    @Param('alternativeId') alternativeId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    const alternative = await this.quizService.getAlternativeById(
+      alternativeId,
+      req.user.id,
+    );
     const { questionId } = alternative;
-    const alternatives =
-      await this.quizService.getAlternativesByQuestion(questionId);
+    const alternatives = await this.quizService.getAlternativesByQuestion(
+      questionId,
+      req.user.id,
+    );
     if (alternatives.length <= 4) {
       throw new BadRequestException(
         'Cada pergunta deve ter exatamente 4 alternativas.',
       );
     }
-    return this.quizService.deleteAlternative(alternativeId);
+    return this.quizService.deleteAlternative(alternativeId, req.user.id);
   }
 }
