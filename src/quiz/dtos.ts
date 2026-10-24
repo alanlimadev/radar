@@ -49,20 +49,36 @@ export class CreateQuestionDto {
   alternatives: CreateAlternativeDto[];
 }
 
+export class UpdateQuestionAlternativeDto {
+  @ApiProperty({ example: 'alt-uuid' })
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @ApiProperty({ example: 'Alternativa A' })
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+
+  @ApiProperty({ example: false })
+  @IsBoolean()
+  isCorrect: boolean;
+}
+
 export class UpdateQuestionDto {
   @ApiProperty({ example: 'Qual a capital do Brasil?', required: false })
   @IsOptional()
   @IsString()
   text?: string;
 
-  @ApiProperty({ type: [CreateAlternativeDto], required: false })
+  @ApiProperty({ type: [UpdateQuestionAlternativeDto], required: false })
   @IsOptional()
   @IsArray()
   @ArrayMinSize(4)
   @ArrayMaxSize(4)
   @ValidateNested({ each: true })
-  @Type(() => CreateAlternativeDto)
-  alternatives?: CreateAlternativeDto[];
+  @Type(() => UpdateQuestionAlternativeDto)
+  alternatives?: UpdateQuestionAlternativeDto[];
 }
 
 export class CreateQuizDto {
