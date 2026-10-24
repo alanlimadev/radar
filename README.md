@@ -156,8 +156,9 @@ Com o servidor em execução, acesse a documentação Swagger interativa:
 ### Principais Endpoints REST
 
 #### Autenticação (`/auth`)
-- `POST /auth/register` — Cadastro de novos Hosts/Professores.
-- `POST /auth/login` — Autenticação e obtenção do Bearer Token JWT.
+- `POST /auth/register` — Cadastro de novos Hosts/Professores com `name`, `username` e `password`.
+- `POST /auth/login` — Autenticação por `username` e `password`, retornando o Bearer Token JWT.
+- `username` é único, sempre minúsculo (3 a 20 caracteres: `a-z`, `0-9`, `.`, `_`, `-`) e não há e-mail no cadastro/login.
 
 #### Salas do RADAR (`/rooms`)
 - `GET /rooms/games` — Lista todos os tipos de jogos registrados no motor.
@@ -169,12 +170,12 @@ Com o servidor em execução, acesse a documentação Swagger interativa:
 
 #### Quizzes (`/quizzes`)
 - `POST /quizzes` — *(Requer JWT)* Criação de quiz com questões e alternativas.
-- `GET /quizzes` — Lista todos os quizzes cadastrados.
-- `GET /quizzes/:id` — Detalha um quiz e suas questões.
+- `GET /quizzes` — Lista apenas os quizzes do professor logado.
+- `GET /quizzes/:id` — Detalha um quiz e suas questões (somente autor; 403 para os demais).
 - `PUT /quizzes/:id` — Atualiza título/descrição do quiz (somente autor).
 - `DELETE /quizzes/:id` — Deleta o quiz (somente autor; bloqueado se houver histórico).
-- `POST /quizzes/:quizId/questions` — Adiciona pergunta a um quiz existente.
-- `POST /quizzes/questions/:questionId/alternatives` — Adiciona alternativa.
+- `POST /quizzes/:quizId/questions` — Adiciona pergunta a um quiz existente (somente autor).
+- `POST /quizzes/questions/:questionId/alternatives` — Adiciona alternativa (somente autor).
 
 ---
 

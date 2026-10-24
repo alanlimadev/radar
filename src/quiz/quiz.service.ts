@@ -3,9 +3,7 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { QuizRepository } from './quiz.repository';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -53,8 +51,9 @@ export class QuizService {
     });
   }
 
-  async findAllQuizzes() {
+  async findAllQuizzes(userId: string) {
     return this.repo.quiz.findMany({
+      where: { createdBy: userId },
       include: {
         questions: {
           include: { alternatives: true },
@@ -62,6 +61,16 @@ export class QuizService {
         },
       },
     });
+  }
+
+  /**
+   * Busca um quiz garantindo que ele pertence ao usuário informado.
+   * Usado pelas rotas HTTP; o motor do jogo usa `findQuizById` (sem filtro).
+   */
+  async findQuizByIdForUser(id: string, userId: string) {
+    const quiz = await this.findQuizById(id);
+    this.assertOwnership(quiz.createdBy, userId);
+    return quiz;
   }
 
   async findQuizById(id: string) {
@@ -128,7 +137,9 @@ export class QuizService {
     });
   }
 
-  async addQuestion(quizId: string, data: CreateQuestionDto) {
+  async addQuestion(quizId: string, data: CreateQuestionDto, userId: string) {
+    await this.assertQuizOwnership(quizId, userId);
+
     const lastQuestion = await this.repo.question.findFirst({
       where: { quizId },
       orderBy: { order: 'desc' },
@@ -150,7 +161,13 @@ export class QuizService {
     });
   }
 
-  async updateQuestion(questionId: string, data: UpdateQuestionDto) {
+  async updateQuestion(
+    questionId: string,
+    data: UpdateQuestionDto,
+    userId: string,
+  ) {
+    await this.assertQuestionOwnership(questionId, userId);
+
     if (!data.alternatives) {
       return this.repo.question.update({
         where: { id: questionId },
@@ -196,11 +213,19 @@ export class QuizService {
     });
   }
 
-  async deleteQuestion(questionId: string) {
+  async deleteQuestion(questionId: string, userId: string) {
+    await this.assertQuestionOwnership(questionId, userId);
+
     return this.repo.question.delete({ where: { id: questionId } });
   }
 
-  async addAlternative(questionId: string, data: CreateAlternativeDto) {
+  async addAlternative(
+    questionId: string,
+    data: CreateAlternativeDto,
+    userId: string,
+  ) {
+    await this.assertQuestionOwnership(questionId, userId);
+
     return this.repo.alternative.create({
       data: {
         text: data.text,
@@ -210,7 +235,13 @@ export class QuizService {
     });
   }
 
-  async updateAlternative(alternativeId: string, data: UpdateAlternativeDto) {
+  async updateAlternative(
+    alternativeId: string,
+    data: UpdateAlternativeDto,
+    userId: string,
+  ) {
+    await this.assertAlternativeOwnership(alternativeId, userId);
+
     return this.repo.alternative.update({
       where: { id: alternativeId },
       data: {
@@ -220,15 +251,90 @@ export class QuizService {
     });
   }
 
-  async deleteAlternative(alternativeId: string) {
+  async deleteAlternative(alternativeId: string, userId: string) {
+    await this.assertAlternativeOwnership(alternativeId, userId);
+
     return this.repo.alternative.delete({ where: { id: alternativeId } });
   }
 
-  async getAlternativesByQuestion(questionId: string) {
+  async getAlternativesByQuestion(questionId: string, userId?: string) {
+    if (userId) {
+      await this.assertQuestionOwnership(questionId, userId);
+    }
     return this.repo.alternative.findMany({ where: { questionId } });
   }
 
-  async getAlternativeById(alternativeId: string) {
-    return this.repo.alternative.findUnique({ where: { id: alternativeId } });
+  async getAlternativeById(alternativeId: string, userId?: string) {
+    const alternative = await this.repo.alternative.findUnique({
+      where: { id: alternativeId },
+    });
+
+    if (!alternative) {
+      throw new NotFoundException('Alternativa não encontrada');
+    }
+
+    if (userId) {
+      await this.assertQuestionOwnership(alternative.questionId, userId);
+    }
+
+    return alternative;
+  }
+
+  private assertOwnership(createdBy: string, userId: string): void {
+    if (createdBy !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para acessar este quiz',
+      );
+    }
+  }
+
+  private async assertQuizOwnership(
+    quizId: string,
+    userId: string,
+  ): Promise<void> {
+    const quiz = await this.repo.quiz.findUnique({
+      where: { id: quizId },
+      select: { createdBy: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz não encontrado');
+    }
+
+    this.assertOwnership(quiz.createdBy, userId);
+  }
+
+  private async assertQuestionOwnership(
+    questionId: string,
+    userId: string,
+  ): Promise<void> {
+    const question = await this.repo.question.findUnique({
+      where: { id: questionId },
+      select: { quiz: { select: { createdBy: true } } },
+    });
+
+    if (!question) {
+      throw new NotFoundException('Pergunta não encontrada');
+    }
+
+    this.assertOwnership(question.quiz.createdBy, userId);
+  }
+
+  private async assertAlternativeOwnership(
+    alternativeId: string,
+    userId: string,
+  ): Promise<void> {
+    const alternative = await this.repo.alternative.findUnique({
+      where: { id: alternativeId },
+      select: {
+        question: { select: { quiz: { select: { createdBy: true } } } },
+      },
+    });
+
+    if (!alternative) {
+      throw new NotFoundException('Alternativa não encontrada');
+    }
+
+    this.assertOwnership(alternative.question.quiz.createdBy, userId);
   }
 }

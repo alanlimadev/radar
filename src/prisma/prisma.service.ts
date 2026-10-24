@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -10,7 +15,7 @@ import * as fs from 'fs';
  * Ao evoluir o schema.prisma, atualize este mapa.
  */
 const REQUIRED_SCHEMA: Record<string, string[]> = {
-  hosts: ['id', 'name', 'email', 'passwordHash'],
+  hosts: ['id', 'name', 'username', 'passwordHash'],
   game_rooms: [
     'id',
     'code',
@@ -230,7 +235,7 @@ export class PrismaService
     } catch (recoveryError) {
       this.logger.error(
         'Falha ao recriar o banco de dados a partir do template:',
-        recoveryError as any,
+        recoveryError,
       );
       throw recoveryError;
     }
