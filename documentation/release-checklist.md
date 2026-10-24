@@ -14,10 +14,13 @@ build falha e nada deve ser publicado.
 
 - [ ] **Nenhuma instância do RADAR aberta.** Os smoke tests usam a porta fixa `3333`.
       Se houver um servidor antigo rodando, o teste falha (ou pior, você testa o build antigo).
-- [ ] Repositórios limpos e na branch correta:
-      - `radar-tcc` → `feat/game-improvements-and-scoring`
-      - `offline-game-quiz` → `feat/ui-improvements-quiz-experience`
+- [ ] Repositórios limpos e na branch `main`, com `git pull` feito nos dois:
+      - `radar-tcc` → `main`
+      - `offline-game-quiz` → `main`
 - [ ] `npm install` em dia nos dois projetos.
+- [ ] Versão da release definida em `offline-game-quiz/src-tauri/tauri.conf.json`
+      (e em `offline-game-quiz/package.json`). O Tauri usa esse valor no nome dos três
+      artefatos; ele precisa ser igual à tag publicada (ex.: `1.1.0` → `v1.1.0`).
 
 ---
 
@@ -35,7 +38,7 @@ Ao final roda automaticamente:
 - [ ] **(automático)** Smoke test do servidor embutido em caminho com dot-dir
       (`scripts/smoke-test-server.ps1`).
 
-Artefato: `offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.0.0_x64-setup.exe`
+Artefato: `offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.1.0_x64-setup.exe`
 
 > O build gera um template **vazio** em `radar-tcc/prisma/build/radar.db` e empacota esse
 > arquivo. O banco de desenvolvimento (`prisma/radar.db`) não é incluído no instalador.
@@ -106,7 +109,7 @@ O release pertence ao repositório do **frontend** (`juniormieg/offline-game-qui
 O `radar-tcc` é o framework usado no build.
 
 - [ ] Confirmar a **tag** e que os artefatos correspondem ao commit publicado:
-      `git rev-parse v1.0.0^{commit}`
+      `git rev-parse v1.1.0^{commit}`
 - [ ] Conferir os **SHA-256** dos três artefatos:
 
       ```powershell
@@ -116,14 +119,14 @@ O `radar-tcc` é o framework usado no build.
 - [ ] Subir os três assets (substituindo os antigos):
 
       ```bash
-      gh release upload v1.0.0 \
-        <...RADAR-Quiz_1.0.0_x64-setup.exe> \
-        <...RADAR-Quiz_1.0.0_amd64.deb> \
-        <...RADAR-Quiz_1.0.0_amd64.AppImage> \
+      gh release upload v1.1.0 \
+        <...RADAR-Quiz_1.1.0_x64-setup.exe> \
+        <...RADAR-Quiz_1.1.0_amd64.deb> \
+        <...RADAR-Quiz_1.1.0_amd64.AppImage> \
         --clobber
       ```
 
-- [ ] Atualizar as **notas do release** (`gh release edit v1.0.0 --notes-file <arquivo>`),
+- [ ] Atualizar as **notas do release** (`gh release edit v1.1.0 --notes-file <arquivo>`),
       com a tabela de SHA-256. Gravar sempre em **UTF-8** (encoding quebrado já ocorreu).
 
 ---

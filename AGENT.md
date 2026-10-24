@@ -141,7 +141,7 @@ docker compose down          # Stop all containers
 
 # Desktop Application Build (Standalone .exe)
 # Always refer to docs/BUILD_EXECUTABLE.md for complete details
-npm run build:app            # Run from radar-tcc to compile all and build RADAR-Quiz_1.0.0_x64-setup.exe
+npm run build:app            # Run from radar-tcc to compile all and build RADAR-Quiz_1.1.0_x64-setup.exe
 # Or: .\build-app.ps1 from workspace root
 ```
 

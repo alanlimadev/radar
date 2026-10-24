@@ -8,8 +8,8 @@
     container Ubuntu 24.04 (imagem 'radar-linux-builder'), com Rust, Node 22 e as libs do
     Tauri, e devolve os pacotes para o repositório:
 
-      offline-game-quiz/src-tauri/target/release/bundle/deb/RADAR-Quiz_1.0.0_amd64.deb
-      offline-game-quiz/src-tauri/target/release/bundle/appimage/RADAR-Quiz_1.0.0_amd64.AppImage
+      offline-game-quiz/src-tauri/target/release/bundle/deb/RADAR-Quiz_1.1.0_amd64.deb
+      offline-game-quiz/src-tauri/target/release/bundle/appimage/RADAR-Quiz_1.1.0_amd64.AppImage
 
     PRÉ-REQUISITOS:
       - Docker Desktop instalado e EM EXECUÇÃO (o daemon precisa estar no ar).

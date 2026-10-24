@@ -1,9 +1,9 @@
 # Guia de Construção do Executável Desktop (RADAR Desktop)
 
 Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo a passo para gerar o instalador executável oficial do **RADAR**:
-- **Windows**: Instalador executável **`.exe` (NSIS)** (`RADAR-Quiz_1.0.0_x64-setup.exe`).
-- **Linux (Debian/Ubuntu/Mint)**: Pacote instalador **`.deb`** (`RADAR-Quiz_1.0.0_amd64.deb`).
-- **Linux (Universal)**: Executável portátil **`.AppImage`** (`RADAR-Quiz_1.0.0_amd64.AppImage`).
+- **Windows**: Instalador executável **`.exe` (NSIS)** (`RADAR-Quiz_1.1.0_x64-setup.exe`).
+- **Linux (Debian/Ubuntu/Mint)**: Pacote instalador **`.deb`** (`RADAR-Quiz_1.1.0_amd64.deb`).
+- **Linux (Universal)**: Executável portátil **`.AppImage`** (`RADAR-Quiz_1.1.0_amd64.AppImage`).
 
 ---
 
@@ -70,7 +70,7 @@ npm run build:app
 
 O instalador será gerado em:
 ```
-offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.0.0_x64-setup.exe
+offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.1.0_x64-setup.exe
 ```
 
 ---
@@ -85,11 +85,11 @@ npm run build:app:linux
 Os pacotes serão gerados em:
 - **Pacote Debian**:
   ```
-  offline-game-quiz/src-tauri/target/release/bundle/deb/RADAR-Quiz_1.0.0_amd64.deb
+  offline-game-quiz/src-tauri/target/release/bundle/deb/RADAR-Quiz_1.1.0_amd64.deb
   ```
 - **AppImage Portátil**:
   ```
-  offline-game-quiz/src-tauri/target/release/bundle/appimage/RADAR-Quiz_1.0.0_amd64.AppImage
+  offline-game-quiz/src-tauri/target/release/bundle/appimage/RADAR-Quiz_1.1.0_amd64.AppImage
   ```
 
 ---
@@ -135,18 +135,18 @@ REBUILD_IMAGE=1 ./scripts/build-app-docker.sh
 ### Usando o `.AppImage` (Sem instalação):
 1. Dê permissão de execução:
    ```bash
-   chmod +x RADAR-Quiz_1.0.0_amd64.AppImage
+   chmod +x RADAR-Quiz_1.1.0_amd64.AppImage
    ```
 2. Execute diretamente:
    ```bash
-   ./RADAR-Quiz_1.0.0_amd64.AppImage
+   ./RADAR-Quiz_1.1.0_amd64.AppImage
    ```
 
 ### Usando o `.deb` (Instalação no sistema):
 ```bash
-sudo dpkg -i RADAR-Quiz_1.0.0_amd64.deb
+sudo dpkg -i RADAR-Quiz_1.1.0_amd64.deb
 # Ou com o apt:
-sudo apt install ./RADAR-Quiz_1.0.0_amd64.deb
+sudo apt install ./RADAR-Quiz_1.1.0_amd64.deb
 ```
 O aplicativo ficará disponível no menu de aplicativos do sistema com o ícone do RADAR.
 
@@ -193,7 +193,7 @@ Dentro de `offline-game-quiz`:
 ```bash
 npx @tauri-apps/cli build
 ```
-O Tauri compilará o binário Rust (`app.exe`), empacotará a pasta `server/` como recurso e utilizará o NSIS para gerar o instalador `RADAR-Quiz_1.0.0_x64-setup.exe`.
+O Tauri compilará o binário Rust (`app.exe`), empacotará a pasta `server/` como recurso e utilizará o NSIS para gerar o instalador `RADAR-Quiz_1.1.0_x64-setup.exe`.
 
 ---
 
