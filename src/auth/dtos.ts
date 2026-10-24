@@ -2,7 +2,6 @@ import {
   IsString,
   IsNotEmpty,
   MinLength,
-  MaxLength,
   Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -18,18 +17,6 @@ export function normalizeUsername(value: unknown): unknown {
 }
 
 export class RegisterDto {
-  @ApiProperty({
-    example: 'Alan Lima',
-    description: 'Nome de exibição do host',
-  })
-  @Transform(
-    ({ value }) => (typeof value === 'string' ? value.trim() : value) as string,
-  )
-  @IsString({ message: 'O nome deve ser uma string' })
-  @IsNotEmpty({ message: 'O nome é obrigatório' })
-  @MaxLength(80, { message: 'O nome deve ter no máximo 80 caracteres' })
-  name: string;
-
   @ApiProperty({
     example: 'alan.lima',
     description:
@@ -83,7 +70,6 @@ export class AuthResponseDto {
   })
   user: {
     id: string;
-    name: string;
     username: string;
   };
 }

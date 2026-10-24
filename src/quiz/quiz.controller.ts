@@ -26,7 +26,6 @@ import {
 interface AuthenticatedRequest extends ExpressRequest {
   user: {
     id: string;
-    name: string;
     username: string;
   };
 }

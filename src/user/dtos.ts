@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MaxLength, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import {
@@ -8,12 +8,6 @@ import {
 } from '../auth/dtos';
 
 export class CreateUserDto {
-  @ApiProperty({ example: 'Alan Lima' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  name: string;
-
   @ApiProperty({ example: 'alan.lima' })
   @Transform(({ value }) => normalizeUsername(value))
   @IsString()
