@@ -14,7 +14,7 @@ datasource db {
 model Host {
     id           String     @id @default(uuid())
     name         String
-    email        String     @unique
+    username     String     @unique
     passwordHash String
     quizzes      Quiz[]     @relation("HostQuizzes")
     rooms        GameRoom[]

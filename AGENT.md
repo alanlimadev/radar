@@ -70,6 +70,8 @@ src/
 - Each question must contain **exactly 4 alternatives**.
 - Exactly **1 alternative** must be flagged `isCorrect: true`.
 - Quizzes are owned by the `Host` (`createdBy` matches `req.user.id`).
+- Ownership is enforced in the backend for every quiz, question and alternative operation; non-owners receive `403 ForbiddenException`. `GET /quizzes` returns only the logged-in host's quizzes.
+- A host can only start a room for a quiz they created (`QuizGameDefinition.init` compares `quiz.createdBy` with `context.hostId`).
 - Quizzes with existing sessions cannot be deleted without handling foreign key constraints (handled with cascade or 409 Conflict).
 
 ---

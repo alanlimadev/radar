@@ -1,5 +1,8 @@
 import { QuizGameDefinition, QuizConfig } from './quiz-game.definition';
-import { GameContext, ActionContext } from '../core/interfaces/game-definition.interface';
+import {
+  GameContext,
+  ActionContext,
+} from '../core/interfaces/game-definition.interface';
 import { Player } from '../core/interfaces/player.interface';
 
 describe('QuizGameDefinition', () => {
@@ -53,6 +56,7 @@ describe('QuizGameDefinition', () => {
       findQuizById: jest.fn().mockResolvedValue({
         id: 'quiz-db-1',
         title: 'Quiz do Banco',
+        createdBy: 'host-1',
         questions: [
           {
             id: 'q1',
@@ -65,7 +69,10 @@ describe('QuizGameDefinition', () => {
     };
 
     const gameWithService = new QuizGameDefinition(mockQuizService as any);
-    const state = await gameWithService.init({ quizId: 'quiz-db-1' }, mockContext);
+    const state = await gameWithService.init(
+      { quizId: 'quiz-db-1' },
+      mockContext,
+    );
 
     expect(state.title).toBe('Quiz do Banco');
     expect(state.questions).toHaveLength(1);
@@ -84,11 +91,37 @@ describe('QuizGameDefinition', () => {
     ).rejects.toThrow('Quiz "inexistent" não encontrado');
   });
 
+  it('should throw ForbiddenException when host tries to start another host quiz', async () => {
+    const mockQuizService = {
+      findQuizById: jest.fn().mockResolvedValue({
+        id: 'quiz-other',
+        title: 'Quiz de outro professor',
+        createdBy: 'host-2',
+        questions: [
+          {
+            id: 'q1',
+            text: 'Pergunta',
+            order: 0,
+            alternatives: [{ id: 'a1', text: 'A', isCorrect: true }],
+          },
+        ],
+      }),
+    };
+
+    const gameWithService = new QuizGameDefinition(mockQuizService as any);
+    await expect(
+      gameWithService.init({ quizId: 'quiz-other' }, mockContext),
+    ).rejects.toThrow(
+      'Você não tem permissão para iniciar uma sala com este quiz',
+    );
+  });
+
   it('should throw BadRequestException if quiz has no questions', async () => {
     const mockQuizService = {
       findQuizById: jest.fn().mockResolvedValue({
         id: 'quiz-empty',
         title: 'Vazio',
+        createdBy: 'host-1',
         questions: [],
       }),
     };
@@ -291,12 +324,16 @@ describe('QuizGameDefinition', () => {
 
     state.status = 'QUESTION_ACTIVE';
     const activeState = quizGame.getClientState(state, player, false);
-    expect(activeState.currentQuestion.alternatives[0].isCorrect).toBeUndefined();
+    expect(
+      activeState.currentQuestion.alternatives[0].isCorrect,
+    ).toBeUndefined();
     expect(activeState.isLeaderboard).toBe(false);
 
     state.status = 'QUESTION_LEADERBOARD';
     const leaderboardState = quizGame.getClientState(state, player, false);
-    expect(leaderboardState.currentQuestion.alternatives[0].isCorrect).toBe(true);
+    expect(leaderboardState.currentQuestion.alternatives[0].isCorrect).toBe(
+      true,
+    );
     expect(leaderboardState.isLeaderboard).toBe(true);
   });
 
@@ -360,7 +397,10 @@ describe('QuizGameDefinition', () => {
     expect(res2.newState.playerScores.get(player1.id)).toBe(1000);
     expect(res2.newState.playerScores.get(player2.id)).toBe(950);
 
-    const finalResults = quizGame.getFinalResults(res2.newState, [player1, player2]);
+    const finalResults = quizGame.getFinalResults(res2.newState, [
+      player1,
+      player2,
+    ]);
     expect(finalResults[0].playerId).toBe(player1.id);
     expect(finalResults[0].score).toBe(1000);
     expect(finalResults[0].correctAnswers).toBe(1);

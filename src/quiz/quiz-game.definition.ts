@@ -3,13 +3,17 @@ import {
   Optional,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   IGameDefinition,
   GameContext,
   ActionContext,
 } from '../core/interfaces/game-definition.interface';
-import { GameAction, ActionResult } from '../core/interfaces/game-action.interface';
+import {
+  GameAction,
+  ActionResult,
+} from '../core/interfaces/game-action.interface';
 import { Player } from '../core/interfaces/player.interface';
 import { QuizService } from './quiz.service';
 
@@ -44,17 +48,20 @@ export interface QuizState {
   questions: QuizQuestion[];
   currentQuestionIndex: number;
   answers: Map<string, PlayerAnswerRecord[]>; // questionId -> list of answers
-  playerScores: Map<string, number>;          // playerId -> score
-  playerCorrectAnswers: Map<string, number>;  // playerId -> correct answers count
-  playerNames: Map<string, string>;           // playerId -> player name
+  playerScores: Map<string, number>; // playerId -> score
+  playerCorrectAnswers: Map<string, number>; // playerId -> correct answers count
+  playerNames: Map<string, string>; // playerId -> player name
   status: 'LOBBY' | 'QUESTION_ACTIVE' | 'QUESTION_LEADERBOARD' | 'GAME_OVER';
 }
 
 @Injectable()
-export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig> {
+export class QuizGameDefinition
+  implements IGameDefinition<QuizState, QuizConfig>
+{
   readonly gameType = 'quiz';
   readonly name = 'Quiz Educacional';
-  readonly description = 'Quiz interativo de perguntas e respostas com ranking em tempo real';
+  readonly description =
+    'Quiz interativo de perguntas e respostas com ranking em tempo real';
   readonly version = '1.0.0';
   readonly minPlayers = 1;
   readonly maxPlayers = 200;
@@ -64,13 +71,15 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
     private readonly quizService?: QuizService,
   ) {}
 
-  async init(config: QuizConfig, _context: GameContext): Promise<QuizState> {
+  async init(config: QuizConfig, context: GameContext): Promise<QuizState> {
     let questions = config.questions;
     let title = config.title;
 
     if ((!questions || questions.length === 0) && config.quizId) {
       if (!this.quizService) {
-        throw new Error('QuizService não disponível para carregar perguntas do quiz');
+        throw new Error(
+          'QuizService não disponível para carregar perguntas do quiz',
+        );
       }
 
       const quiz = await this.quizService.findQuizById(config.quizId);
@@ -78,8 +87,18 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
         throw new NotFoundException(`Quiz "${config.quizId}" não encontrado`);
       }
 
+      // Garante que o host só inicie salas com quizzes que ele mesmo criou.
+      // A regra fica no módulo quiz para manter o core agnóstico.
+      if (quiz.createdBy !== context.hostId) {
+        throw new ForbiddenException(
+          'Você não tem permissão para iniciar uma sala com este quiz',
+        );
+      }
+
       if (!quiz.questions || quiz.questions.length === 0) {
-        throw new BadRequestException('O quiz selecionado não possui perguntas configuradas');
+        throw new BadRequestException(
+          'O quiz selecionado não possui perguntas configuradas',
+        );
       }
 
       title = quiz.title;
@@ -108,7 +127,11 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
     };
   }
 
-  onPlayerJoin(state: QuizState, player: Player, _context: GameContext): ActionResult<QuizState> {
+  onPlayerJoin(
+    state: QuizState,
+    player: Player,
+    _context: GameContext,
+  ): ActionResult<QuizState> {
     if (!state.playerScores.has(player.id)) {
       state.playerScores.set(player.id, 0);
     }
@@ -176,8 +199,11 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
         }
 
         const { questionId, alternativeId } = payload;
-        const targetQuestion = state.questions.find((q) => q.id === questionId) || currentQ;
-        const chosenAlt = targetQuestion.alternatives.find((a) => a.id === alternativeId);
+        const targetQuestion =
+          state.questions.find((q) => q.id === questionId) || currentQ;
+        const chosenAlt = targetQuestion.alternatives.find(
+          (a) => a.id === alternativeId,
+        );
 
         if (!chosenAlt) {
           throw new Error('Alternativa inválida');
@@ -194,7 +220,9 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
         if (!existingAns) {
           if (isCorrect) {
             // Ordem de acertos para esta pergunta: quem responde primeiro ganha mais pontos
-            const priorCorrectCount = qAnswers.filter((a) => a.isCorrect).length;
+            const priorCorrectCount = qAnswers.filter(
+              (a) => a.isCorrect,
+            ).length;
             // 1º acerto ganha 1000, 2º 950, 3º 900... piso de 100 pontos
             pointsAwarded = Math.max(100, 1000 - priorCorrectCount * 50);
           }
@@ -211,7 +239,8 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
           // Atualiza pontuação e acertos se estiver correta
           if (isCorrect) {
             const currentScore = state.playerScores.get(senderId) || 0;
-            const currentCorrect = state.playerCorrectAnswers?.get(senderId) || 0;
+            const currentCorrect =
+              state.playerCorrectAnswers?.get(senderId) || 0;
             const newScore = currentScore + pointsAwarded;
 
             state.playerScores.set(senderId, newScore);
@@ -227,15 +256,19 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
 
         const events: any[] = [];
         const activePlayers = context.players.filter((p) => !p.isHost);
-        const allAnswered = activePlayers.length > 0 && qAnswers.length >= activePlayers.length;
+        const allAnswered =
+          activePlayers.length > 0 && qAnswers.length >= activePlayers.length;
 
         // Se todos os jogadores ativos responderam:
         // Se for a última pergunta, finaliza direto para GAME_OVER (ranking final / pódio)
         // Caso contrário, transiciona para QUESTION_LEADERBOARD
         if (allAnswered) {
-          const isLastQuestion = state.currentQuestionIndex >= state.questions.length - 1;
+          const isLastQuestion =
+            state.currentQuestionIndex >= state.questions.length - 1;
           const scores = this.getFinalResults(state, context.players);
-          const correctAlt = targetQuestion.alternatives.find((a) => a.isCorrect);
+          const correctAlt = targetQuestion.alternatives.find(
+            (a) => a.isCorrect,
+          );
 
           events.push({
             event: 'scoresUpdate',
@@ -288,7 +321,8 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
 
         // Se a pergunta ainda está ativa, o host está encerrando a pergunta
         if (state.status === 'QUESTION_ACTIVE') {
-          const isLastQuestion = state.currentQuestionIndex >= state.questions.length - 1;
+          const isLastQuestion =
+            state.currentQuestionIndex >= state.questions.length - 1;
           const scores = this.getFinalResults(state, context.players);
           const correctAlt = currentQ?.alternatives.find((a) => a.isCorrect);
 
@@ -423,7 +457,8 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
             id: alt.id,
             text: alt.text,
             // Revela isCorrect para o Host OU quando a rodada encerrou (Leaderboard / Game Over)
-            isCorrect: isHost || isLeaderboardOrOver ? alt.isCorrect : undefined,
+            isCorrect:
+              isHost || isLeaderboardOrOver ? alt.isCorrect : undefined,
           })),
         }
       : null;
@@ -439,7 +474,9 @@ export class QuizGameDefinition implements IGameDefinition<QuizState, QuizConfig
       currentQuestion: sanitizedQuestion,
       totalAnswers: qAnswers.length,
       isFinished: state.status === 'GAME_OVER',
-      myScore: forPlayer ? state.playerScores.get(forPlayer.id) || 0 : undefined,
+      myScore: forPlayer
+        ? state.playerScores.get(forPlayer.id) || 0
+        : undefined,
     };
   }
 

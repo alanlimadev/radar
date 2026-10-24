@@ -50,9 +50,31 @@ Copy-Item (Join-Path $BackendDir "dist-bundle\index.js") -Destination (Join-Path
 if (Test-Path (Join-Path $ServerTarget "client")) { Remove-Item -Recurse -Force (Join-Path $ServerTarget "client") }
 Copy-Item -Recurse (Join-Path $FrontendDir "dist") (Join-Path $ServerTarget "client")
 
-if (Test-Path (Join-Path $BackendDir "prisma\radar.db")) {
-    Copy-Item (Join-Path $BackendDir "prisma\radar.db") -Destination (Join-Path $ServerTarget "radar.db") -Force
+# Gera sempre um template vazio e limpo (nunca empacota o banco de desenvolvimento,
+# que pode conter usuarios/quizzes locais). O arquivo fica ignorado pelo git.
+$TemplateDir = Join-Path $BackendDir "prisma\build"
+$TemplateDb = Join-Path $TemplateDir "radar.db"
+New-Item -ItemType Directory -Force -Path $TemplateDir | Out-Null
+if (Test-Path $TemplateDb) { Remove-Item -Force $TemplateDb }
+
+$PreviousDatabaseUrl = $env:DATABASE_URL
+$env:DATABASE_URL = "file:./build/radar.db"
+Push-Location $BackendDir
+try {
+    npx prisma db push --skip-generate
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $TemplateDb)) {
+        throw "Erro ao gerar o banco template vazio (prisma db push)"
+    }
+} finally {
+    Pop-Location
+    if ($null -eq $PreviousDatabaseUrl) {
+        Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+    } else {
+        $env:DATABASE_URL = $PreviousDatabaseUrl
+    }
 }
+
+Copy-Item $TemplateDb -Destination (Join-Path $ServerTarget "radar.db") -Force
 
 $ModulesTarget = Join-Path $ServerTarget "node_modules"
 if (-not (Test-Path $ModulesTarget)) { New-Item -ItemType Directory -Force -Path $ModulesTarget | Out-Null }

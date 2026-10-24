@@ -37,6 +37,9 @@ Ao final roda automaticamente:
 
 Artefato: `offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.0.0_x64-setup.exe`
 
+> O build gera um template **vazio** em `radar-tcc/prisma/build/radar.db` e empacota esse
+> arquivo. O banco de desenvolvimento (`prisma/radar.db`) não é incluído no instalador.
+
 ### Linux (`.deb` + `.AppImage`, via Docker Desktop)
 
 ```powershell
@@ -52,10 +55,35 @@ Ao final roda automaticamente (`scripts/linux-docker/smoke-test-linux.sh`):
 
 Artefatos em `offline-game-quiz/src-tauri/target/release/bundle/{deb,appimage}/`.
 
+### Reset opcional do banco no instalador Windows
+
+O instalador NSIS (`src-tauri/windows/hooks.nsh`) pergunta se o usuário quer apagar o banco
+local **somente quando ele já existe**:
+
+- [ ] Marcar **Não** (padrão) preserva usuários, quizzes e salas.
+- [ ] Marcar **Sim** apaga `radar.db`, `radar.db-wal`, `radar.db-shm` e `radar.db-journal`
+      em `%APPDATA%\com.radar.quiz\data\`, permitindo um cadastro limpo (útil para feiras e
+      apresentações).
+- [ ] Com o app aberto, o instalador **aborta** em vez de apagar parcialmente; feche o
+      RADAR-Quiz e rode de novo.
+- [ ] Instalação silenciosa (`RADAR-Quiz_...-setup.exe /S /RESETDB`) apaga sem perguntar;
+      `/S` sem `/RESETDB` mantém os dados.
+- [ ] O banco antigo é renomeado para `radar.db.pre-reset` antes da remoção dos artefatos,
+      servindo de último recurso manual.
+
 ---
 
 ## 2. Verificações manuais (quando o smoke test não cobre)
 
+- [ ] **Login por usuário** (sem e-mail): criar professor com `username` minúsculo, sair e
+      entrar de novo; tentar cadastrar o mesmo `username` → mensagem de usuário já em uso.
+- [ ] **Isolamento por professor**: com dois professores, cada um vê somente os próprios
+      quizzes; abrir/editar um quiz do outro (via URL direta) retorna 403 e volta ao painel.
+- [ ] **Tempo de pergunta**: cada pergunta encerra em **30 segundos** ou antes, se todos
+      responderem; o aluno não consegue confirmar depois do zero e o professor vê o ranking.
+- [ ] **Onboarding**: primeiro login do professor e primeira entrada do aluno em `/game`
+      mostram o guia rápido; "Pular"/"Começar" não reapresenta na próxima visita. O botão
+      **Ajuda** (professor) e **Como jogar** (aluno) reabrem o guia.
 - [ ] **Rotas do SPA** respondem 200 e com o HTML do client:
       `/`, `/game`, `/game?sessionId=1`, `/loginScreen`, `/qualquer-rota/x`.
 - [ ] **API** continua JSON: `/quizzes` sem token → `401` (não HTML).

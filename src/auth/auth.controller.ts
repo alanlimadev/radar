@@ -18,7 +18,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Email já está em uso.',
+    description: 'Nome de usuário já está em uso.',
   })
   async register(@Body() data: RegisterDto) {
     return this.authService.register(data);
@@ -35,7 +35,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Credenciais inválidas.',
+    description: 'Usuário ou senha inválidos.',
   })
   async login(@Body() data: LoginDto) {
     return this.authService.login(data);
