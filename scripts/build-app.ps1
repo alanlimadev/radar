@@ -1,18 +1,18 @@
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "  RADAR - Compilação do Instalador Desktop" -ForegroundColor Cyan
+Write-Host "  Qonect - Compilação do Instalador Desktop" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
-# Detecta se está sendo executado da raiz do workspace ou de dentro de radar-tcc/scripts
+# Detecta se está sendo executado da raiz do workspace ou de dentro de radar/scripts
 $Root = $PSScriptRoot
-if (-not (Test-Path (Join-Path $Root "radar-tcc"))) {
+if (-not (Test-Path (Join-Path $Root "radar"))) {
     $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 }
-if (-not (Test-Path (Join-Path $Root "radar-tcc"))) {
+if (-not (Test-Path (Join-Path $Root "radar"))) {
     $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 }
 
-$BackendDir = Join-Path $Root "radar-tcc"
-$FrontendDir = Join-Path $Root "offline-game-quiz"
+$BackendDir = Join-Path $Root "radar"
+$FrontendDir = Join-Path $Root "qonect"
 $ServerTarget = Join-Path $FrontendDir "src-tauri\server"
 
 # Localiza dinamicamente o node.exe da máquina do desenvolvedor
@@ -25,7 +25,7 @@ if (-not $NodePath -or -not (Test-Path $NodePath)) {
     }
 }
 
-Write-Host "`n[1/6] Compilando Backend (radar-tcc)..." -ForegroundColor Yellow
+Write-Host "`n[1/6] Compilando Backend (radar)..." -ForegroundColor Yellow
 Set-Location $BackendDir
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "Erro ao compilar o backend" }
@@ -34,7 +34,7 @@ Write-Host "`n[2/6] Gerando Bundle Standalone do Backend..." -ForegroundColor Ye
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
 if ($LASTEXITCODE -ne 0) { throw "Erro ao empacotar com ncc" }
 
-Write-Host "`n[3/6] Compilando Frontend (offline-game-quiz)..." -ForegroundColor Yellow
+Write-Host "`n[3/6] Compilando Frontend (qonect)..." -ForegroundColor Yellow
 Set-Location $FrontendDir
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "Erro ao compilar o frontend" }
@@ -94,5 +94,5 @@ powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "smoke-test-se
 if ($LASTEXITCODE -ne 0) { throw "Smoke test falhou: o servidor embutido nao atende /game corretamente" }
 
 Write-Host "`n✅ Build finalizado com sucesso!" -ForegroundColor Green
-Write-Host "O instalador .exe estará na pasta: offline-game-quiz\src-tauri\target\release\bundle\nsis\" -ForegroundColor Cyan
+Write-Host "O instalador .exe estará na pasta: qonect\src-tauri\target\release\bundle\nsis\" -ForegroundColor Cyan
 Set-Location $Root

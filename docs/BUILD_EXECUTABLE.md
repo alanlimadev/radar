@@ -1,9 +1,9 @@
-# Guia de Construção do Executável Desktop (RADAR Desktop)
+# Guia de Construção do Executável Desktop (Qonect)
 
-Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo a passo para gerar o instalador executável oficial do **RADAR**:
-- **Windows**: Instalador executável **`.exe` (NSIS)** (`RADAR-Quiz_1.1.0_x64-setup.exe`).
-- **Linux (Debian/Ubuntu/Mint)**: Pacote instalador **`.deb`** (`RADAR-Quiz_1.1.0_amd64.deb`).
-- **Linux (Universal)**: Executável portátil **`.AppImage`** (`RADAR-Quiz_1.1.0_amd64.AppImage`).
+Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo a passo para gerar o instalador executável oficial do **Qonect**:
+- **Windows**: Instalador executável **`.exe` (NSIS)** (`Qonect_1.1.0_x64-setup.exe`).
+- **Linux (Debian/Ubuntu/Mint)**: Pacote instalador **`.deb`** (`Qonect_1.1.0_amd64.deb`).
+- **Linux (Universal)**: Executável portátil **`.AppImage`** (`Qonect_1.1.0_amd64.AppImage`).
 
 ---
 
@@ -12,11 +12,11 @@ Este documento registra detalhadamente a arquitetura, pré-requisitos e o passo 
 O sistema foi desenhado para que qualquer usuário leigo (professores, instrutores) consiga instalar e rodar a aplicação em um ambiente 100% offline (sem internet, sem Docker, sem Node.js e sem conhecimentos técnicos prévios):
 
 ```text
-[RADAR-Quiz Instalador / AppImage / NSIS]
+[Qonect Instalador / AppImage / NSIS]
                   │
                   ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │ RADAR-Quiz (App Nativo Tauri em Rust)                       │
+  │ Qonect (App Nativo Tauri em Rust)                           │
   │   ├── WebView Nativa (Windows WebView2 / Linux WebKitGTK)   │
   │   └── Gerenciador de Processo Filho (Rust Command)          │
   │         │                                                   │
@@ -35,8 +35,8 @@ O sistema foi desenhado para que qualquer usuário leigo (professores, instrutor
 ### Principais Invariantes:
 1. **Zero dependência externa na máquina final**: O executável inclui seu próprio runtime do Node.js (`node.exe` no Windows ou `node` no Linux), as engines nativas do Prisma e todo o frontend estático.
 2. **Porta única (3333)**: Tanto o backend quanto a interface web dos celulares dos alunos utilizam exclusivamente a porta `3333`.
-3. **Persistência Segura**: O banco SQLite (`radar.db`) é mantido no diretório de dados do usuário: `%APPDATA%\com.radar.quiz\data\` no Windows ou `~/.local/share/com.radar.quiz/data/` no Linux, garantindo que atualizações do executável não apaguem os dados.
-4. **Logs automáticos**: O servidor redireciona toda sua saída para a pasta de logs do aplicativo (`%APPDATA%\com.radar.quiz\logs\radar-server.log` no Windows; `~/.local/share/com.radar.quiz/logs/radar-server.log` no Linux).
+3. **Persistência Segura**: O banco SQLite (`radar.db`) é mantido no diretório de dados do usuário: `%APPDATA%\com.qonect.quiz\data\` no Windows ou `~/.local/share/com.qonect.quiz/data/` no Linux, garantindo que atualizações do executável não apaguem os dados.
+4. **Logs automáticos**: O servidor redireciona toda sua saída para a pasta de logs do aplicativo (`%APPDATA%\com.qonect.quiz\logs\qonect-server.log` no Windows; `~/.local/share/com.qonect.quiz/logs/qonect-server.log` no Linux).
 
 ---
 
@@ -62,7 +62,7 @@ O sistema foi desenhado para que qualquer usuário leigo (professores, instrutor
 ## 3. Como Gerar os Binários (Métodos Rápidos - 1 Comando)
 
 ### No Windows (Gerar `.exe`):
-Execute a partir do diretório `radar-tcc/`:
+Execute a partir do diretório `radar/`:
 ```bash
 npm run build:app
 ```
@@ -70,13 +70,13 @@ npm run build:app
 
 O instalador será gerado em:
 ```
-offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.1.0_x64-setup.exe
+qonect/src-tauri/target/release/bundle/nsis/Qonect_1.1.0_x64-setup.exe
 ```
 
 ---
 
 ### No Linux / WSL2 (Gerar `.deb` e `.AppImage`):
-No WSL ou terminal Linux, navegue até `radar-tcc/` e execute:
+No WSL ou terminal Linux, navegue até `radar/` e execute:
 ```bash
 npm run build:app:linux
 ```
@@ -85,11 +85,11 @@ npm run build:app:linux
 Os pacotes serão gerados em:
 - **Pacote Debian**:
   ```
-  offline-game-quiz/src-tauri/target/release/bundle/deb/RADAR-Quiz_1.1.0_amd64.deb
+  qonect/src-tauri/target/release/bundle/deb/Qonect_1.1.0_amd64.deb
   ```
 - **AppImage Portátil**:
   ```
-  offline-game-quiz/src-tauri/target/release/bundle/appimage/RADAR-Quiz_1.1.0_amd64.AppImage
+  qonect/src-tauri/target/release/bundle/appimage/Qonect_1.1.0_amd64.AppImage
   ```
 
 ---
@@ -117,15 +117,15 @@ REBUILD_IMAGE=1 ./scripts/build-app-docker.sh
 ```
 
 **Como funciona:**
-1. Constrói (na primeira execução) a imagem `radar-linux-builder` — Ubuntu 24.04 + Rust + Node 22 + libs do Tauri — definida em `radar-tcc/scripts/linux-docker/Dockerfile`.
-2. Executa `radar-tcc/scripts/linux-docker/build-inner.sh` dentro do container, montando a raiz do workspace em `/src`.
-3. Devolve os pacotes para `offline-game-quiz/src-tauri/target/release/bundle/{deb,appimage}/`.
+1. Constrói (na primeira execução) a imagem `radar-linux-builder` — Ubuntu 24.04 + Rust + Node 22 + libs do Tauri — definida em `radar/scripts/linux-docker/Dockerfile`.
+2. Executa `radar/scripts/linux-docker/build-inner.sh` dentro do container, montando a raiz do workspace em `/src`.
+3. Devolve os pacotes para `qonect/src-tauri/target/release/bundle/{deb,appimage}/`.
 
 **Notas:**
 - `build-inner.sh` gera os bundles `deb` e `appimage` em execuções separadas, para que uma falha em um não impeça o outro.
 - O AppImage é empacotado com `APPIMAGE_EXTRACT_AND_RUN=1`, portanto não exige FUSE.
 - O runtime Node embutido no pacote é o binário Linux (ELF) do container, e o Prisma gera o engine `debian-openssl-3.0.x`.
-- Arquivos relacionados: `radar-tcc/scripts/build-app-docker.ps1`, `radar-tcc/scripts/build-app-docker.sh`, `radar-tcc/scripts/linux-docker/Dockerfile`, `radar-tcc/scripts/linux-docker/build-inner.sh`.
+- Arquivos relacionados: `radar/scripts/build-app-docker.ps1`, `radar/scripts/build-app-docker.sh`, `radar/scripts/linux-docker/Dockerfile`, `radar/scripts/linux-docker/build-inner.sh`.
 
 ---
 
@@ -135,20 +135,20 @@ REBUILD_IMAGE=1 ./scripts/build-app-docker.sh
 ### Usando o `.AppImage` (Sem instalação):
 1. Dê permissão de execução:
    ```bash
-   chmod +x RADAR-Quiz_1.1.0_amd64.AppImage
+   chmod +x Qonect_1.1.0_amd64.AppImage
    ```
 2. Execute diretamente:
    ```bash
-   ./RADAR-Quiz_1.1.0_amd64.AppImage
+   ./Qonect_1.1.0_amd64.AppImage
    ```
 
 ### Usando o `.deb` (Instalação no sistema):
 ```bash
-sudo dpkg -i RADAR-Quiz_1.1.0_amd64.deb
+sudo dpkg -i Qonect_1.1.0_amd64.deb
 # Ou com o apt:
-sudo apt install ./RADAR-Quiz_1.1.0_amd64.deb
+sudo apt install ./Qonect_1.1.0_amd64.deb
 ```
-O aplicativo ficará disponível no menu de aplicativos do sistema com o ícone do RADAR.
+O aplicativo ficará disponível no menu de aplicativos do sistema com o ícone do Qonect.
 
 ---
 
@@ -157,9 +157,9 @@ O aplicativo ficará disponível no menu de aplicativos do sistema com o ícone 
 Se for necessário executar ou depurar o processo passo a passo:
 
 ### Passo 4.1: Compilar o Backend NestJS
-No diretório `radar-tcc`:
+No diretório `radar`:
 ```bash
-cd radar-tcc
+cd radar
 npm run build
 ```
 
@@ -170,18 +170,18 @@ npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
 ```
 
 ### Passo 4.3: Compilar o Frontend React
-No diretório `offline-game-quiz`:
+No diretório `qonect`:
 ```bash
-cd ../offline-game-quiz
+cd ../qonect
 npm run build
 ```
 
 ### Passo 4.4: Sincronizar os Recursos do Servidor Embutido
-Os arquivos compilados são organizados na pasta `offline-game-quiz/src-tauri/server/` (**o staging é limpo antes de montar**, para não arrastar o binário do outro SO):
+Os arquivos compilados são organizados na pasta `qonect/src-tauri/server/` (**o staging é limpo antes de montar**, para não arrastar o binário do outro SO):
 - `node.exe`: Copiado de `C:\Program Files\nodejs\node.exe` (ou runtime redistribuível).
-- `index.js`: Copiado de `radar-tcc/dist-bundle/index.js`.
-- `client/`: Copiado de `offline-game-quiz/dist/` (servido por `app.useStaticAssets` + `SpaFallbackFilter` — **não** mais pelo `@nestjs/serve-static`, que quebrava em caminhos com dot-dir; ver `documentation/spa-fallback-404-appimage.md`).
-- `radar.db`: Copiado de `radar-tcc/prisma/radar.db` (template com schema SQLite).
+- `index.js`: Copiado de `radar/dist-bundle/index.js`.
+- `client/`: Copiado de `qonect/dist/` (servido por `app.useStaticAssets` + `SpaFallbackFilter` — **não** mais pelo `@nestjs/serve-static`, que quebrava em caminhos com dot-dir; ver `documentation/spa-fallback-404-appimage.md`).
+- `radar.db`: Copiado de `radar/prisma/radar.db` (template com schema SQLite).
 - `node_modules/`: Copia as pastas `@prisma` e `.prisma` com o `query_engine-windows.dll.node`.
 
 > **Atenção:** o staging `src-tauri/server/` é compartilhado entre o build Windows e o Linux.
@@ -189,22 +189,22 @@ Os arquivos compilados são organizados na pasta `offline-game-quiz/src-tauri/se
 > pacote Linux nem `node` no pacote Windows.
 
 ### Passo 4.5: Gerar o Instalador com o Tauri
-Dentro de `offline-game-quiz`:
+Dentro de `qonect`:
 ```bash
 npx @tauri-apps/cli build
 ```
-O Tauri compilará o binário Rust (`app.exe`), empacotará a pasta `server/` como recurso e utilizará o NSIS para gerar o instalador `RADAR-Quiz_1.1.0_x64-setup.exe`.
+O Tauri compilará o binário Rust (`qonect.exe`), empacotará a pasta `server/` como recurso e utilizará o NSIS para gerar o instalador `Qonect_1.1.0_x64-setup.exe`.
 
 ---
 
 ## 5. Estrutura de Arquivos Crítica do Tauri
 
-- **`offline-game-quiz/src-tauri/tauri.conf.json`**:
+- **`qonect/src-tauri/tauri.conf.json`**:
   - `bundle.targets`: `["nsis"]` (gera o `.exe` de instalação clássico).
   - `bundle.resources`: `["server/**/*"]` (embutir o backend e runtime).
-- **`offline-game-quiz/src-tauri/src/lib.rs`**:
+- **`qonect/src-tauri/src/lib.rs`**:
   - Spawna `node.exe index.js` em background com a flag `CREATE_NO_WINDOW` no Windows.
-  - Redireciona logs para `%APPDATA%\com.radar.quiz\logs\radar-server.log`.
+  - Redireciona logs para `%APPDATA%\com.qonect.quiz\logs\qonect-server.log`.
   - Mata o processo do servidor automaticamente ao fechar o app (`CloseRequested` e `Destroyed`).
 
 ---
@@ -213,7 +213,7 @@ O Tauri compilará o binário Rust (`app.exe`), empacotará a pasta `server/` co
 
 1. **Servidor Indisponível ou Erro 500 ao Abrir o App**:
    - Inspecione o arquivo de log do servidor em:
-     `%APPDATA%\com.radar.quiz\logs\radar-server.log`
+     `%APPDATA%\com.qonect.quiz\logs\qonect-server.log`
 2. **IP do Hotspot não Selecionado**:
    - O backend prioriza o IP `192.168.137.1` (padrão do Hotspot Móvel do Windows).
    - O painel do lobby (`AdminLobbyView`) possui botões para alternar manualmente entre interfaces caso o Wi-Fi e o Hotspot estejam ligados simultaneamente.
@@ -225,7 +225,7 @@ O Tauri compilará o binário Rust (`app.exe`), empacotará a pasta `server/` co
      código-fonte já tem a correção, provavelmente você está rodando um pacote antigo.
    - Confira qual build está em execução: `md5sum /proc/<PID>/cwd/index.js` (o PID vem de
      `ss -ltnp | grep 3333`) e compare com o `index.js` interno do pacote novo. Encerre o app
-     antigo (`pkill -f RADAR-Quiz`) e confirme que a porta 3333 ficou livre antes de reabrir.
+     antigo (`pkill -f Qonect`) e confirme que a porta 3333 ficou livre antes de reabrir.
    - Detalhes: `documentation/spa-fallback-404-appimage.md`.
 
 ---
@@ -241,7 +241,7 @@ final (ex.: 404 do SPA em caminhos com dot-dir).
 Executado ao final de `npm run build:app`. Manualmente:
 
 ```powershell
-powershell -File radar-tcc/scripts/smoke-test-server.ps1 -ServerDir offline-game-quiz/src-tauri/server
+powershell -File radar/scripts/smoke-test-server.ps1 -ServerDir qonect/src-tauri/server
 ```
 
 Copia o servidor embutido para um caminho com **dot-dir** (`.mount_RADAR-smoke`), sobe o
@@ -256,8 +256,8 @@ Executado ao final de `npm run build:app:linux:docker` (dentro do container). Ma
 
 ```bash
 docker run --rm -w / \
-  -v "<workspace>/offline-game-quiz/src-tauri/target/release/bundle:/b:ro" \
-  -v "<workspace>/radar-tcc/scripts/linux-docker:/s:ro" \
+  -v "<workspace>/qonect/src-tauri/target/release/bundle:/b:ro" \
+  -v "<workspace>/radar/scripts/linux-docker:/s:ro" \
   radar-linux-builder:latest \
   bash /s/smoke-test-linux.sh /b/deb/*.deb /b/appimage/*.AppImage
 ```

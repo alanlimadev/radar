@@ -102,7 +102,7 @@ if [ -n "$APP" ]; then
     echo "=== appimage: $APP ==="
     cp "$APP" "$W/a.AppImage"; chmod +x "$W/a.AppImage"
     ( cd "$W" && ./a.AppImage --appimage-extract >/dev/null 2>&1 )
-    aserver="$W/squashfs-root/usr/lib/RADAR-Quiz/server"
+    aserver="$W/squashfs-root/usr/lib/Qonect/server"
     if [ -d "$aserver" ]; then
       check_server "appimage" "$aserver" "$W/ai/work"
     else

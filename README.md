@@ -4,7 +4,7 @@
 
 O **RADAR** é um framework de backend modular desenvolvido sobre o ecossistema **NestJS**, projetado especificamente para orquestrar sessões multiusuário em tempo real em ambientes com infraestrutura de rede limitada ou **sem qualquer conectividade com a internet** (WLAN / redes ad-hoc / roteadores locais).
 
-Este projeto é desenvolvido no âmbito de um Trabalho de Conclusão de Curso (TCC) em conjunto com a aplicação frontend [`offline-game-quiz`](../offline-game-quiz), uma prova de conceito (PoC) que implementa um jogo interativo estilo Kahoot operando 100% offline.
+Este projeto é desenvolvido no âmbito de um Trabalho de Conclusão de Curso (TCC) em conjunto com a aplicação frontend [`qonect`](../qonect), uma prova de conceito (PoC) que implementa um jogo interativo estilo Kahoot operando 100% offline.
 
 ---
 
@@ -92,7 +92,7 @@ src/
 
 ### 1. Configuração de Variáveis de Ambiente
 
-Crie um arquivo `.env` na raiz do diretório `radar-tcc/`:
+Crie um arquivo `.env` na raiz do diretório `radar/`:
 
 ```env
 POSTGRES_DB=radardb
@@ -210,7 +210,7 @@ Recomendado para novos jogos ou aplicações construídas sobre o framework:
 
 ### 2. Protocolo Legado (PoC Kahoot)
 
-Mantido integralmente para retrocompatibilidade com o frontend `offline-game-quiz`:
+Mantido integralmente para retrocompatibilidade com o frontend `qonect`:
 
 | Evento Cliente | Origem | Ação Correspondente no RADAR |
 |---|---|---|

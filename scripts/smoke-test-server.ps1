@@ -12,10 +12,10 @@
   "." (dotfile, retorna 404 "Not Found"). Isso ja quebrou /game no Linux. Este
   teste existe para garantir que esse problema nao volte.
 
-  Usa a porta 3333 (fixa no backend). Feche o app RADAR antes de rodar.
+  Usa a porta 3333 (fixa no backend). Feche o app Qonect antes de rodar.
 
 .EXAMPLE
-  powershell -File scripts/smoke-test-server.ps1 -ServerDir ..\offline-game-quiz\src-tauri\server
+  powershell -File scripts/smoke-test-server.ps1 -ServerDir ..\qonect\src-tauri\server
 #>
 param(
   [Parameter(Mandatory = $true)][string]$ServerDir

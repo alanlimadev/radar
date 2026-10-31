@@ -7,7 +7,7 @@
 #   docker build -t radar-linux-builder ./scripts/linux-docker
 #
 # O build real é executado por scripts/linux-docker/build-inner.sh, que recebe:
-#   - /src       -> raiz do workspace (radar-tcc + offline-game-quiz), montado rw
+#   - /src       -> raiz do workspace (radar + qonect), montado rw
 #   - /opt/build -> esta pasta, montada (contém build-inner.sh)
 #
 # Veja docs/BUILD_EXECUTABLE.md, seção "Build Linux a partir do Windows (Docker)".

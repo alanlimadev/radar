@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Gera os instaladores Linux (.deb e .AppImage) do RADAR usando Docker.
+# Gera os instaladores Linux (.deb e .AppImage) do Qonect usando Docker.
 #
 # Útil a partir de macOS ou de um Linux sem as libs do Tauri instaladas.
 # (Em um Linux com as dependências nativas, prefira ./scripts/build-app.sh.)
@@ -23,7 +23,7 @@ if [ ! -f "$LINUX_DIR/Dockerfile" ]; then
 fi
 
 echo "========================================="
-echo "  RADAR - Build Linux (.deb + .AppImage) via Docker"
+echo "  Qonect - Build Linux (.deb + .AppImage) via Docker"
 echo "========================================="
 echo "Workspace: $ROOT_DIR"
 
@@ -47,5 +47,5 @@ docker run --rm --name radar-linux-build \
 
 echo -e "\n✅ Build Linux finalizado."
 echo "Artefatos em:"
-echo " - deb:      offline-game-quiz/src-tauri/target/release/bundle/deb/"
-echo " - appimage: offline-game-quiz/src-tauri/target/release/bundle/appimage/"
+echo " - deb:      qonect/src-tauri/target/release/bundle/deb/"
+echo " - appimage: qonect/src-tauri/target/release/bundle/appimage/"

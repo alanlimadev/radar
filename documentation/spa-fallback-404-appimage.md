@@ -48,7 +48,7 @@ diretório **`.mount_XXXX` começa com ponto** — é um dot-dir. Logo, o `index
 do `@nestjs/serve-static` era algo como:
 
 ```text
-/tmp/.mount_RADAR123/usr/lib/RADAR-Quiz/server/client/index.html
+/tmp/.mount_RADAR123/usr/lib/Qonect/server/client/index.html
       └── dot-dir ──┘
 ```
 
@@ -71,14 +71,14 @@ Essa assimetria (`/` = 200, `/game` = 404) é a assinatura desse bug.
 ### Por que só no Linux?
 
 No Windows o app é instalado em algo como
-`C:\Users\<user>\AppData\Local\RADAR-Quiz\...` — nenhum componente começa com ponto, então o
+`C:\Users\<user>\AppData\Local\Qonect\...` — nenhum componente começa com ponto, então o
 `send` aceitava o caminho absoluto normalmente.
 
 ## Como reproduzir
 
 Reproduzido no próprio Windows, sem AppImage, só para isolar a causa:
 
-1. Copiar o conteúdo de `offline-game-quiz/src-tauri/server/` para uma pasta cujo caminho
+1. Copiar o conteúdo de `qonect/src-tauri/server/` para uma pasta cujo caminho
    tenha um componente iniciado por `.` (ex.: `...\.mount_RADAR-test\`).
 2. Rodar `node index.js` dentro dela.
 3. Resultado com o código antigo:
@@ -92,7 +92,7 @@ Isso confirma que a causa é o dot no caminho — não o Linux, não o AppImage 
 
 ## Correção
 
-**Commit:** `radar-tcc@452ca07` (branch `feat/game-improvements-and-scoring`)
+**Commit:** `radar@452ca07` (branch `feat/game-improvements-and-scoring`)
 
 1. **Removido o `ServeStaticModule`** de `src/app.module.ts`.
 2. O client passou a ser servido por caminho de **URL** via
@@ -115,7 +115,7 @@ Isso confirma que a causa é o dot no caminho — não o Linux, não o AppImage 
 ### Teste unitário
 
 ```bash
-cd radar-tcc
+cd radar
 npx jest src/core/http/spa-fallback.filter.spec.ts
 ```
 
@@ -127,15 +127,15 @@ escopo → não intercepta.
 Windows:
 
 ```powershell
-powershell -File radar-tcc/scripts/smoke-test-server.ps1 -ServerDir offline-game-quiz/src-tauri/server
+powershell -File radar/scripts/smoke-test-server.ps1 -ServerDir qonect/src-tauri/server
 ```
 
 Linux (dentro do container de build):
 
 ```bash
 docker run --rm -w / \
-  -v "<workspace>/offline-game-quiz/src-tauri/target/release/bundle:/b:ro" \
-  -v "<workspace>/radar-tcc/scripts/linux-docker:/s:ro" \
+  -v "<workspace>/qonect/src-tauri/target/release/bundle:/b:ro" \
+  -v "<workspace>/radar/scripts/linux-docker:/s:ro" \
   radar-linux-builder:latest \
   bash /s/smoke-test-linux.sh /b/deb/*.deb /b/appimage/*.AppImage
 ```

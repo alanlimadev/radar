@@ -4,11 +4,11 @@
 # Não é feito para rodar direto no host.
 #
 # Contrato de montagem (definido pelos wrappers build-app-docker.ps1/.sh):
-#   /src        -> raiz do workspace (contém radar-tcc/ e offline-game-quiz/), rw
-#   /opt/build  -> pasta radar-tcc/scripts/linux-docker (contém este script e o Dockerfile)
+#   /src        -> raiz do workspace (contém radar/ e qonect/), rw
+#   /opt/build  -> pasta radar/scripts/linux-docker (contém este script e o Dockerfile)
 #
 # Ao final, os artefatos são copiados de volta para:
-#   /src/offline-game-quiz/src-tauri/target/release/bundle/{deb,appimage}/
+#   /src/qonect/src-tauri/target/release/bundle/{deb,appimage}/
 set -euo pipefail
 
 export APPIMAGE_EXTRACT_AND_RUN=1
@@ -18,7 +18,7 @@ export CI=true
 cd /
 
 echo "==========================================="
-echo "  RADAR - Build Linux (.deb + .AppImage)"
+echo "  Qonect - Build Linux (.deb + .AppImage)"
 echo "==========================================="
 
 rm -rf /build
@@ -28,15 +28,15 @@ echo -e "\n[0/8] Copiando codigo (/src) para o filesystem Linux (/build, sem nod
 rsync -a \
   --exclude 'node_modules' --exclude 'target' --exclude 'dist' --exclude 'dist-bundle' \
   --exclude '.git' --exclude '.tanstack' --exclude 'gen' \
-  /src/radar-tcc /build/
+  /src/radar /build/
 rsync -a \
   --exclude 'node_modules' --exclude 'target' --exclude 'dist' --exclude '.git' --exclude '.tanstack' \
-  /src/offline-game-quiz /build/
+  /src/qonect /build/
 
-BACKEND=/build/radar-tcc
-FRONTEND=/build/offline-game-quiz
+BACKEND=/build/radar
+FRONTEND=/build/qonect
 SERVER="$FRONTEND/src-tauri/server"
-OUT_BUNDLE=/src/offline-game-quiz/src-tauri/target/release/bundle
+OUT_BUNDLE=/src/qonect/src-tauri/target/release/bundle
 
 echo -e "\n[1/8] Instalando dependencias do backend..."
 cd "$BACKEND"
