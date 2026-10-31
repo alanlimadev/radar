@@ -42,8 +42,8 @@ fi
 echo -e "\n[run] Compilando dentro do container..."
 docker run --rm --name radar-linux-build \
     -v "$ROOT_DIR:/src" \
-    -v "$LINUX_DIR:/opt/build" \
-    "$IMAGE" bash -c 'sed -i "s/\r$//" /opt/build/build-inner.sh && bash /opt/build/build-inner.sh'
+    -v "$LINUX_DIR:/opt/build:ro" \
+    "$IMAGE" bash -c 'bash /opt/build/build-inner.sh'
 
 echo -e "\n✅ Build Linux finalizado."
 echo "Artefatos em:"

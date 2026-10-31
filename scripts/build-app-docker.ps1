@@ -70,8 +70,8 @@ if (-not $imageExists -or $RebuildImage) {
 Write-Host "`n[run] Compilando dentro do container..." -ForegroundColor Yellow
 docker run --rm --name radar-linux-build `
     -v "${Root}:/src" `
-    -v "${LinuxDir}:/opt/build" `
-    $Image bash -c 'sed -i "s/\r$//" /opt/build/build-inner.sh && bash /opt/build/build-inner.sh'
+    -v "${LinuxDir}:/opt/build:ro" `
+    $Image bash -c 'bash /opt/build/build-inner.sh'
 
 if ($LASTEXITCODE -ne 0) {
     throw "O build Linux falhou (código $LASTEXITCODE). Verifique a saída acima."
