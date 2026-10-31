@@ -9,7 +9,7 @@ This file provides authoritative architectural context, domain invariants, workf
 **RADAR** is a modular NestJS framework for building low-latency, real-time multiplayer applications and games designed to run over local wireless networks (WLAN) **without internet connectivity**.
 
 - **Primary Repository Role:** Backend framework engine (`src/core`) + Quiz PoC implementation (`src/quiz`).
-- **Partner Project:** [`offline-game-quiz`](../offline-game-quiz) — React + Vite frontend acting as the Kahoot-style offline proof-of-concept.
+- **Partner Project:** [`qonect`](../qonect) — React + Vite frontend acting as the Kahoot-style offline proof-of-concept.
 - **Runtime Port:** `3333` (Hosts both REST API and Socket.IO WebSocket gateway).
 - **Swagger Documentation:** `http://localhost:3333/swagger`.
 
@@ -98,7 +98,7 @@ Used by modern clients and any future game implementations:
 | `radar:error` | Server ➔ Client | `{ message: string }` |
 
 ### 4.2 Legacy Protocol (Kahoot PoC Compatibility)
-Maintained for backward compatibility with `offline-game-quiz`:
+Maintained for backward compatibility with `qonect`:
 
 | Event Name | Role | Payload | Response / Broadcast |
 |---|---|---|---|
@@ -113,7 +113,7 @@ Maintained for backward compatibility with `offline-game-quiz`:
 
 ## 5. Development & Testing Commands
 
-Always run commands from the `radar-tcc` root directory:
+Always run commands from the `radar` root directory:
 
 ```bash
 # Development
@@ -141,7 +141,7 @@ docker compose down          # Stop all containers
 
 # Desktop Application Build (Standalone .exe)
 # Always refer to docs/BUILD_EXECUTABLE.md for complete details
-npm run build:app            # Run from radar-tcc to compile all and build RADAR-Quiz_1.1.0_x64-setup.exe
+npm run build:app            # Run from radar to compile all and build Qonect_1.1.0_x64-setup.exe
 # Or: .\build-app.ps1 from workspace root
 ```
 
@@ -169,7 +169,7 @@ When tasked with generating, packaging, or modifying the standalone desktop inst
 
 1. **Mandatory Documentation:** Always read and follow [`docs/BUILD_EXECUTABLE.md`](./docs/BUILD_EXECUTABLE.md). It contains the complete architectural specification, Tauri sidecar configuration, SQLite AppData paths, and diagnostic steps.
 2. **Build Execution:** Never build partial steps manually unless debugging. Use the root automation script `.\build-app.ps1`.
-3. **Database & Persistence:** The standalone runtime uses SQLite (`radar.db`) in the per-user app data dir (`%APPDATA%\com.radar.quiz\data\radar.db` on Windows, `~/.local/share/com.radar.quiz/data/radar.db` on Linux). The template DB shipped in the bundle is copied only when the user DB does not exist. On startup, `PrismaService` validates the expected tables/columns via `REQUIRED_SCHEMA`; if the DB is incompatible (from an older version or corrupt) it is backed up as `radar.db.bak-<timestamp>` and recreated from the template, avoiding `500 Internal server error` (Prisma `P2021`/`P2022`). When changing `prisma/schema.prisma`, update `REQUIRED_SCHEMA` in `src/prisma/prisma.service.ts`. Do not hardcode database paths to relative directories.
+3. **Database & Persistence:** The standalone runtime uses SQLite (`radar.db`) in the per-user app data dir (`%APPDATA%\com.qonect.quiz\data\radar.db` on Windows, `~/.local/share/com.qonect.quiz/data/radar.db` on Linux). The template DB shipped in the bundle is copied only when the user DB does not exist. On startup, `PrismaService` validates the expected tables/columns via `REQUIRED_SCHEMA`; if the DB is incompatible (from an older version or corrupt) it is backed up as `radar.db.bak-<timestamp>` and recreated from the template, avoiding `500 Internal server error` (Prisma `P2021`/`P2022`). When changing `prisma/schema.prisma`, update `REQUIRED_SCHEMA` in `src/prisma/prisma.service.ts`. Do not hardcode database paths to relative directories.
 4. **Network & Hotspot:** The backend exposes `GET /rooms/network-ip` to auto-detect the host IP, prioritizing the Windows Mobile Hotspot adapter (`192.168.137.1`).
 5. **Linux Builds (`.deb` / `.AppImage`):** Tauri does not cross-compile from Windows to Linux. To produce Linux bundles, use the Docker environment in `scripts/linux-docker/` via `npm run build:app:linux:docker` (Windows) or `npm run build:app:linux:docker:sh` (Linux/macOS). Docker Desktop must be running. On a native Linux machine with Tauri system deps, `npm run build:app:linux` (`scripts/build-app.sh`) works directly. See [`docs/BUILD_EXECUTABLE.md`](./docs/BUILD_EXECUTABLE.md).
 6. **SPA fallback (dot-dir invariant):** the SPA `index.html` must be served with a **relative** path plus `{ root }` — `res.sendFile('index.html', { root })` — never with an absolute path. The Express `send` module rejects any path containing a `.`-prefixed component (dotfile/dot-dir), and the AppImage mounts the app under `/tmp/.mount_XXXX`, which caused `404` on `/game` and every deep link. Do **not** reintroduce `@nestjs/serve-static` for the SPA fallback; it is handled by `SpaFallbackFilter` (`src/core/http/spa-fallback.filter.ts`) plus `app.useStaticAssets()` in `src/main.ts`. See [`documentation/spa-fallback-404-appimage.md`](./documentation/spa-fallback-404-appimage.md).

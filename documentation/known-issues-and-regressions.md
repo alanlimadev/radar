@@ -1,7 +1,7 @@
 # Problemas Conhecidos e Guardas de Regressão
 
-Este documento centraliza os bugs que já chegaram a um **instalador publicado** do RADAR
-desktop (`radar-tcc` + app Tauri `offline-game-quiz`), com sintoma, causa raiz, correção e
+Este documento centraliza os bugs que já chegaram a um **instalador publicado** do Qonect
+desktop (`radar` + app Tauri `qonect`), com sintoma, causa raiz, correção e
 **como impedir que volte**.
 
 > **Regra do projeto:** todo bug que chegar a um instalador publicado precisa virar uma
@@ -60,7 +60,7 @@ que não contém ponto — daí o comportamento assimétrico (`/` = 200, `/game`
 
 ### Correção
 
-- **Commit:** `radar-tcc@452ca07`
+- **Commit:** `radar@452ca07`
 - Removido o `ServeStaticModule` de `src/app.module.ts`.
 - Client servido por caminho de URL via `app.useStaticAssets(clientPath)` em `src/main.ts`.
 - Novo `SpaFallbackFilter` (`src/core/http/spa-fallback.filter.ts`) que só age em
@@ -90,19 +90,19 @@ que não contém ponto — daí o comportamento assimétrico (`/` = 200, `/game`
 
 ### Sintoma
 
-O app abre e mostra erro **500** nas requisições. Log (`radar-server.log`) aponta falha do
+O app abre e mostra erro **500** nas requisições. Log (`qonect-server.log`) aponta falha do
 Prisma ao acessar/abrir o banco.
 
 ### Causa raiz
 
-O banco SQLite do usuário (em `%APPDATA%\com.radar.quiz\data\radar.db` no Windows ou
-`~/.local/share/com.radar.quiz/data/radar.db` no Linux) podia estar ausente, vazio ou
+O banco SQLite do usuário (em `%APPDATA%\com.qonect.quiz\data\radar.db` no Windows ou
+`~/.local/share/com.qonect.quiz/data/radar.db` no Linux) podia estar ausente, vazio ou
 incompleto (ex.: primeira execução interrompida, arquivo de template inválido), e o servidor
 não fazia nenhuma recuperação no startup.
 
 ### Correção
 
-- **Commits:** `radar-tcc@53b1324` e `radar-tcc@248b733`
+- **Commits:** `radar@53b1324` e `radar@248b733`
 - `src/prisma/prisma.service.ts` faz um **self-heal** no startup: se o banco do usuário não
   existir (ou estiver inválido), ele recria o schema a partir do template embutido antes de
   aceitar conexões. O caminho do banco é resolvido por `RADAR_DATA_DIR` (definido pelo app
@@ -111,7 +111,7 @@ não fazia nenhuma recuperação no startup.
 ### Como não regredir
 
 - O self-heal usa o template `radar.db` embutido no pacote — os scripts de build precisam
-  continuar copiando `radar-tcc/prisma/radar.db` para `src-tauri/server/radar.db`.
+  continuar copiando `radar/prisma/radar.db` para `src-tauri/server/radar.db`.
 - Ao testar manualmente, apague `.../data/radar.db` e confirme que o app sobe sem 500.
 
 ---
@@ -138,7 +138,7 @@ Duas causas combinadas:
 
 ### Correção
 
-- **Commit (frontend):** `offline-game-quiz@194ae7a`
+- **Commit (frontend):** `qonect@194ae7a`
 - O socket passou a ser um **singleton vivo entre telas** (`src/services/websocket.ts`), com
   listeners registrados de forma resiliente a reconexão.
 - "Finalizar"/"voltar" usam `leaveSession()` em vez de `disconnect()` — a conexão permanece e
@@ -167,7 +167,7 @@ Windows, escolhendo uma interface inadequada.
 
 ### Correção
 
-- **Commit:** `radar-tcc@0410da3`
+- **Commit:** `radar@0410da3`
 - `src/core/network/ip.util.ts` passou a usar um filtro **híbrido**: nome da interface **+**
   faixas de IP virtuais conhecidas, **sem nunca fabricar** um IP.
 - Prioritiza `192.168.137.1` (hotspot móvel do Windows) quando presente.

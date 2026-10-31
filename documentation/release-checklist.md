@@ -1,6 +1,6 @@
 # Checklist de Build e Publicação (Desktop)
 
-Checklist obrigatório para gerar e publicar instaladores do RADAR desktop
+Checklist obrigatório para gerar e publicar instaladores do Qonect desktop
 (`.exe`, `.deb`, `.AppImage`). Ele existe para que os problemas catalogados em
 [known-issues-and-regressions.md](./known-issues-and-regressions.md) **não voltem** a chegar
 ao usuário final.
@@ -12,14 +12,14 @@ build falha e nada deve ser publicado.
 
 ## 0. Antes de começar
 
-- [ ] **Nenhuma instância do RADAR aberta.** Os smoke tests usam a porta fixa `3333`.
+- [ ] **Nenhuma instância do Qonect aberta.** Os smoke tests usam a porta fixa `3333`.
       Se houver um servidor antigo rodando, o teste falha (ou pior, você testa o build antigo).
 - [ ] Repositórios limpos e na branch `main`, com `git pull` feito nos dois:
-      - `radar-tcc` → `main`
-      - `offline-game-quiz` → `main`
+      - `radar` → `main`
+      - `qonect` → `main`
 - [ ] `npm install` em dia nos dois projetos.
-- [ ] Versão da release definida em `offline-game-quiz/src-tauri/tauri.conf.json`
-      (e em `offline-game-quiz/package.json`). O Tauri usa esse valor no nome dos três
+- [ ] Versão da release definida em `qonect/src-tauri/tauri.conf.json`
+      (e em `qonect/package.json`). O Tauri usa esse valor no nome dos três
       artefatos; ele precisa ser igual à tag publicada (ex.: `1.1.0` → `v1.1.0`).
 
 ---
@@ -29,7 +29,7 @@ build falha e nada deve ser publicado.
 ### Windows (`.exe` NSIS)
 
 ```powershell
-cd radar-tcc
+cd radar
 npm run build:app
 ```
 
@@ -38,15 +38,15 @@ Ao final roda automaticamente:
 - [ ] **(automático)** Smoke test do servidor embutido em caminho com dot-dir
       (`scripts/smoke-test-server.ps1`).
 
-Artefato: `offline-game-quiz/src-tauri/target/release/bundle/nsis/RADAR-Quiz_1.1.0_x64-setup.exe`
+Artefato: `qonect/src-tauri/target/release/bundle/nsis/Qonect_1.1.0_x64-setup.exe`
 
-> O build gera um template **vazio** em `radar-tcc/prisma/build/radar.db` e empacota esse
+> O build gera um template **vazio** em `radar/prisma/build/radar.db` e empacota esse
 > arquivo. O banco de desenvolvimento (`prisma/radar.db`) não é incluído no instalador.
 
 ### Linux (`.deb` + `.AppImage`, via Docker Desktop)
 
 ```powershell
-cd radar-tcc
+cd radar
 npm run build:app:linux:docker
 ```
 
@@ -56,7 +56,7 @@ Ao final roda automaticamente (`scripts/linux-docker/smoke-test-linux.sh`):
 - [ ] **(automático)** Confirma que **não há `node.exe`** (binário do Windows) em nenhum dos
       dois pacotes.
 
-Artefatos em `offline-game-quiz/src-tauri/target/release/bundle/{deb,appimage}/`.
+Artefatos em `qonect/src-tauri/target/release/bundle/{deb,appimage}/`.
 
 > A pasta `bundle/` pode conter pacotes de builds antigos (ex.: `1.0.0` ao lado de `1.1.0`).
 > O smoke test valida sempre o arquivo **mais recente** de cada pasta; confira no log qual
@@ -69,11 +69,11 @@ local **somente quando ele já existe**:
 
 - [ ] Marcar **Não** (padrão) preserva usuários, quizzes e salas.
 - [ ] Marcar **Sim** apaga `radar.db`, `radar.db-wal`, `radar.db-shm` e `radar.db-journal`
-      em `%APPDATA%\com.radar.quiz\data\`, permitindo um cadastro limpo (útil para feiras e
+      em `%APPDATA%\com.qonect.quiz\data\`, permitindo um cadastro limpo (útil para feiras e
       apresentações).
 - [ ] Com o app aberto, o instalador **aborta** em vez de apagar parcialmente; feche o
-      RADAR-Quiz e rode de novo.
-- [ ] Instalação silenciosa (`RADAR-Quiz_...-setup.exe /S /RESETDB`) apaga sem perguntar;
+      Qonect e rode de novo.
+- [ ] Instalação silenciosa (`Qonect_...-setup.exe /S /RESETDB`) apaga sem perguntar;
       `/S` sem `/RESETDB` mantém os dados.
 - [ ] O banco antigo é renomeado para `radar.db.pre-reset` antes da remoção dos artefatos,
       servindo de último recurso manual.
@@ -109,8 +109,8 @@ local **somente quando ele já existe**:
 
 ## 3. Publicação
 
-O release pertence ao repositório do **frontend** (`juniormieg/offline-game-quiz`).
-O `radar-tcc` é o framework usado no build.
+O release pertence ao repositório do **frontend** (`juniormieg/qonect`).
+O `radar` é o framework usado no build.
 
 - [ ] Confirmar a **tag** e que os artefatos correspondem ao commit publicado:
       `git rev-parse v1.1.0^{commit}`
@@ -124,9 +124,9 @@ O `radar-tcc` é o framework usado no build.
 
       ```bash
       gh release upload v1.1.0 \
-        <...RADAR-Quiz_1.1.0_x64-setup.exe> \
-        <...RADAR-Quiz_1.1.0_amd64.deb> \
-        <...RADAR-Quiz_1.1.0_amd64.AppImage> \
+        <...Qonect_1.1.0_x64-setup.exe> \
+        <...Qonect_1.1.0_amd64.deb> \
+        <...Qonect_1.1.0_amd64.AppImage> \
         --clobber
       ```
 
@@ -145,7 +145,7 @@ Os problemas **não se corrigem sozinhos** em máquinas que já têm a versão a
       novo:
 
       ```bash
-      pkill -f RADAR-Quiz
+      pkill -f Qonect
       sleep 2
       ss -ltnp | grep 3333      # deve voltar vazio
       ```
@@ -158,8 +158,8 @@ Os problemas **não se corrigem sozinhos** em máquinas que já têm a versão a
 
       (o PID vem de `ss -ltnp | grep 3333`). Comparar com o `index.js` interno do pacote novo.
 - [ ] Se ainda der 404: pegar a URL exata e o log
-      (`~/.local/share/com.radar.quiz/logs/radar-server.log` no Linux,
-      `%APPDATA%\com.radar.quiz\logs\radar-server.log` no Windows).
+      (`~/.local/share/com.qonect.quiz/logs/qonect-server.log` no Linux,
+      `%APPDATA%\com.qonect.quiz\logs\qonect-server.log` no Windows).
 
 ---
 

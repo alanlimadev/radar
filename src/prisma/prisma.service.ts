@@ -45,7 +45,7 @@ function resolveDataDir(): string {
       : `${process.env.HOME}/.config`);
 
   return appData
-    ? path.join(appData, 'com.radar.quiz', 'data')
+    ? path.join(appData, 'com.qonect.quiz', 'data')
     : path.join(process.cwd(), 'data');
 }
 

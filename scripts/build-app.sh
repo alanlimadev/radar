@@ -2,15 +2,15 @@
 set -e
 
 echo "========================================="
-echo "  RADAR - Compilação Desktop Linux (.deb & .AppImage)"
+echo "  Qonect - Compilação Desktop Linux (.deb & .AppImage)"
 echo "========================================="
 
 # Diretórios base
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-BACKEND_DIR="$ROOT_DIR/radar-tcc"
-FRONTEND_DIR="$ROOT_DIR/offline-game-quiz"
+BACKEND_DIR="$ROOT_DIR/radar"
+FRONTEND_DIR="$ROOT_DIR/qonect"
 SERVER_TARGET="$FRONTEND_DIR/src-tauri/server"
 
 # Localizar binário do Node.js no Linux
@@ -33,7 +33,7 @@ if ! file "$NODE_PATH" 2>/dev/null | grep -q "ELF"; then
     exit 1
 fi
 
-echo -e "\n[1/6] Compilando Backend (radar-tcc)..."
+echo -e "\n[1/6] Compilando Backend (radar)..."
 cd "$BACKEND_DIR"
 npm run build
 
@@ -43,7 +43,7 @@ npx prisma generate
 echo -e "\n[3/6] Gerando Bundle Standalone do Backend..."
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
 
-echo -e "\n[4/6] Compilando Frontend (offline-game-quiz)..."
+echo -e "\n[4/6] Compilando Frontend (qonect)..."
 cd "$FRONTEND_DIR"
 npm run build
 
