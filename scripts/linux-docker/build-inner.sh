@@ -11,6 +11,9 @@
 #   /src/qonect/src-tauri/target/release/bundle/{deb,appimage}/
 set -euo pipefail
 
+# Diretorio deste script (pode ser uma copia normalizada em /tmp dentro do container).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 export APPIMAGE_EXTRACT_AND_RUN=1
 export CI=true
 
@@ -101,7 +104,7 @@ if [ -z "$DEB_ARTIFACT" ] || [ -z "$APP_ARTIFACT" ]; then
   echo "!!! ARTEFATOS AUSENTES (deb=${DEB_ARTIFACT:-?} appimage=${APP_ARTIFACT:-?}) - build incompleto !!!"
   exit 1
 fi
-bash /opt/build/smoke-test-linux.sh "$DEB_ARTIFACT" "$APP_ARTIFACT" \
+bash "$SCRIPT_DIR/smoke-test-linux.sh" "$DEB_ARTIFACT" "$APP_ARTIFACT" \
   || { echo "!!! SMOKE TEST FALHOU - NAO publique estes artefatos !!!"; exit 1; }
 
 echo "DONE"
