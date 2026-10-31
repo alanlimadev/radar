@@ -14,7 +14,11 @@ export interface Room<TState = any, TConfig = any> {
   players: Map<string, Player>;
   createdAt: Date;
   updatedAt: Date;
+  /** Instante em que a partida realmente começou (primeira ação START). */
+  gameStartedAt?: Date;
   endedAt?: Date;
+  /** Indica se o snapshot do relatório foi gravado com sucesso no SQLite. */
+  reportPersisted?: boolean;
 }
 
 export interface RoomSummary {

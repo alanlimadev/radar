@@ -12,6 +12,16 @@ export interface ActionContext extends GameContext {
   sender: Player;
 }
 
+/** Metadados de sessão disponíveis para montar o snapshot do relatório. */
+export interface ResultsReportContext {
+  roomId: string;
+  roomCode: string;
+  hostId: string;
+  createdAt: Date;
+  gameStartedAt?: Date;
+  endedAt?: Date;
+}
+
 export interface GameMetadata {
   gameType: string;
   name: string;
@@ -69,4 +79,14 @@ export interface IGameDefinition<TState = any, TConfig = any, TPublicState = any
    * Retorna os dados de encerramento / ranking final / estatísticas.
    */
   getFinalResults(state: TState, players?: Player[]): any;
+
+  /**
+   * Monta o snapshot imutável do relatório da sessão.
+   * Opcional: o core só chama quando o jogo implementa.
+   */
+  getResultsReport?(
+    state: TState,
+    players?: Player[],
+    context?: ResultsReportContext,
+  ): any;
 }

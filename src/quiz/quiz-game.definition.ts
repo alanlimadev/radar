@@ -9,6 +9,7 @@ import {
   IGameDefinition,
   GameContext,
   ActionContext,
+  ResultsReportContext,
 } from '../core/interfaces/game-definition.interface';
 import {
   GameAction,
@@ -535,6 +536,201 @@ export class QuizGameDefinition
       }
     }
 
-    return results.sort((a, b) => b.score - a.score);
+    return results.sort(
+      (a, b) => b.score - a.score || a.name.localeCompare(b.name),
+    );
+  }
+
+  /**
+   * Monta o snapshot imutável da sessão (schemaVersion 1).
+   * O core persiste este objeto em `game_rooms.results` sem conhecer o quiz.
+   */
+  getResultsReport(
+    state: QuizState,
+    playersList: Player[] = [],
+    context?: ResultsReportContext,
+  ): any {
+    const questions = state.questions ?? [];
+
+    // Participantes: todo jogador que entrou na sala. O mapa de players é a
+    // fonte da verdade; os mapas do estado cobrem chamadas sem lista.
+    const participantMap = new Map<
+      string,
+      { id: string; name: string; score: number; correct: number; connected: boolean }
+    >();
+
+    for (const [playerId, name] of state.playerNames?.entries() ?? []) {
+      participantMap.set(playerId, {
+        id: playerId,
+        name,
+        score: state.playerScores.get(playerId) ?? 0,
+        correct: state.playerCorrectAnswers?.get(playerId) ?? 0,
+        connected: true,
+      });
+    }
+
+    for (const [playerId, score] of state.playerScores.entries()) {
+      const current = participantMap.get(playerId);
+      participantMap.set(playerId, {
+        id: playerId,
+        name: current?.name || state.playerNames?.get(playerId) || 'Jogador',
+        score,
+        correct: state.playerCorrectAnswers?.get(playerId) ?? 0,
+        connected: current?.connected ?? true,
+      });
+    }
+
+    for (const player of playersList) {
+      if (player.isHost) continue;
+      const current = participantMap.get(player.id);
+      participantMap.set(player.id, {
+        id: player.id,
+        name: player.name || current?.name || 'Jogador',
+        score: state.playerScores.get(player.id) ?? current?.score ?? 0,
+        correct:
+          state.playerCorrectAnswers?.get(player.id) ?? current?.correct ?? 0,
+        connected: player.connected,
+      });
+    }
+
+    const participants = Array.from(participantMap.values());
+    const playerCount = participants.length;
+
+    // Respostas por pergunta
+    const reportQuestions = questions.map((question, order) => {
+      const answers = state.answers.get(question.id) ?? [];
+      const answered = answers.length;
+      const correct = answers.filter((answer) => answer.isCorrect).length;
+      const incorrect = answered - correct;
+      const unanswered = Math.max(0, playerCount - answered);
+      const correctAlternative = question.alternatives.find(
+        (alternative) => alternative.isCorrect,
+      );
+
+      return {
+        id: question.id,
+        order,
+        text: question.text,
+        correctAlternativeId: correctAlternative?.id ?? null,
+        correctAlternativeText: correctAlternative?.text ?? null,
+        answered,
+        correct,
+        incorrect,
+        unanswered,
+        accuracy: answered > 0 ? correct / answered : 0,
+        alternatives: question.alternatives.map((alternative) => {
+          const selected = answers.filter(
+            (answer) => answer.alternativeId === alternative.id,
+          ).length;
+          return {
+            id: alternative.id,
+            text: alternative.text,
+            isCorrect: Boolean(alternative.isCorrect),
+            selected,
+            percentage: answered > 0 ? selected / answered : 0,
+          };
+        }),
+      };
+    });
+
+    const answersByPlayer = new Map<
+      string,
+      Array<{
+        questionId: string;
+        alternativeId: string;
+        isCorrect: boolean;
+        answeredAt: string;
+      }>
+    >();
+
+    for (const question of questions) {
+      for (const answer of state.answers.get(question.id) ?? []) {
+        const list = answersByPlayer.get(answer.playerId) ?? [];
+        list.push({
+          questionId: answer.questionId,
+          alternativeId: answer.alternativeId,
+          isCorrect: Boolean(answer.isCorrect),
+          answeredAt: new Date(answer.answeredAt).toISOString(),
+        });
+        answersByPlayer.set(answer.playerId, list);
+      }
+    }
+
+    const ranked = participants
+      .slice()
+      .sort(
+        (a, b) => b.score - a.score || a.name.localeCompare(b.name),
+      );
+
+    const reportPlayers = ranked.map((player, index) => {
+      const answers = answersByPlayer.get(player.id) ?? [];
+      const answered = answers.length;
+      const correct = answers.filter((answer) => answer.isCorrect).length;
+      const incorrect = answered - correct;
+      const unanswered = Math.max(0, questions.length - answered);
+
+      return {
+        id: player.id,
+        name: player.name,
+        rank: index + 1,
+        score: player.score,
+        correct,
+        incorrect,
+        unanswered,
+        accuracy: questions.length > 0 ? correct / questions.length : 0,
+        leftEarly: player.connected === false,
+        answers,
+      };
+    });
+
+    const totalAnswers = reportQuestions.reduce(
+      (sum, question) => sum + question.answered,
+      0,
+    );
+    const totalCorrect = reportQuestions.reduce(
+      (sum, question) => sum + question.correct,
+      0,
+    );
+    const totalIncorrect = reportQuestions.reduce(
+      (sum, question) => sum + question.incorrect,
+      0,
+    );
+    const totalUnanswered = reportQuestions.reduce(
+      (sum, question) => sum + question.unanswered,
+      0,
+    );
+    const possibleAnswers = playerCount * questions.length;
+
+    const createdAt = context?.createdAt ?? new Date();
+    const gameStartedAt = context?.gameStartedAt;
+    const endedAt = context?.endedAt ?? new Date();
+    const durationBase = gameStartedAt ?? createdAt;
+    const durationMs = Math.max(0, endedAt.getTime() - durationBase.getTime());
+
+    return {
+      schemaVersion: 1,
+      session: {
+        roomId: context?.roomId ?? '',
+        code: context?.roomCode ?? '',
+        quizId: state.quizId ?? null,
+        quizTitle: state.title ?? 'Quiz',
+        createdAt: createdAt.toISOString(),
+        gameStartedAt: gameStartedAt ? gameStartedAt.toISOString() : null,
+        endedAt: endedAt.toISOString(),
+        durationMs,
+      },
+      totals: {
+        players: playerCount,
+        questions: questions.length,
+        answers: totalAnswers,
+        correct: totalCorrect,
+        incorrect: totalIncorrect,
+        unanswered: totalUnanswered,
+        accuracy: possibleAnswers > 0 ? totalCorrect / possibleAnswers : 0,
+        answerRate: possibleAnswers > 0 ? totalAnswers / possibleAnswers : 0,
+      },
+      questions: reportQuestions,
+      players: reportPlayers,
+    };
   }
 }

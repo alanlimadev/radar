@@ -15,6 +15,9 @@ import {
   UpdateAlternativeDto,
 } from './dtos';
 
+export const normalizeQuizText = (value: string): string => value.replace(/\r\n?/g, '\n').trim().replace(/\n{3,}/g, '\n\n');
+export const normalizeQuizTextOptional = (value?: string): string | undefined => value !== undefined ? normalizeQuizText(value) : undefined;
+
 type CreateQuizInput = CreateQuizDto & { createdBy: string };
 
 @Injectable()
@@ -27,13 +30,13 @@ export class QuizService {
   async createQuiz(data: CreateQuizInput) {
     return this.repo.quiz.create({
       data: {
-        title: data.title,
-        description: data.description,
+        title: normalizeQuizText(data.title),
+        description: normalizeQuizTextOptional(data.description),
         createdBy: data.createdBy,
         questions: data.questions
           ? {
               create: data.questions.map((q, index) => ({
-                text: q.text,
+                text: normalizeQuizText(q.text),
                 order: index,
                 alternatives: {
                   create: q.alternatives,
@@ -110,8 +113,8 @@ export class QuizService {
     return this.repo.quiz.update({
       where: { id },
       data: {
-        title: data.title,
-        description: data.description,
+        title: normalizeQuizTextOptional(data.title),
+        description: normalizeQuizTextOptional(data.description),
       },
     });
   }
@@ -150,7 +153,7 @@ export class QuizService {
 
     return this.repo.question.create({
       data: {
-        text: data.text,
+        text: normalizeQuizText(data.text),
         order: nextOrder,
         quizId,
         alternatives: data.alternatives
@@ -171,7 +174,7 @@ export class QuizService {
     if (!data.alternatives) {
       return this.repo.question.update({
         where: { id: questionId },
-        data: { text: data.text },
+        data: { text: normalizeQuizTextOptional(data.text) },
       });
     }
 
@@ -196,13 +199,13 @@ export class QuizService {
     return this.prisma.$transaction(async (tx) => {
       await tx.question.update({
         where: { id: questionId },
-        data: { text: data.text },
+        data: { text: normalizeQuizTextOptional(data.text) },
       });
 
       for (const alt of alternatives) {
         await tx.alternative.update({
           where: { id: alt.id },
-          data: { text: alt.text, isCorrect: alt.isCorrect },
+          data: { text: normalizeQuizText(alt.text), isCorrect: alt.isCorrect },
         });
       }
 
@@ -219,16 +222,12 @@ export class QuizService {
     return this.repo.question.delete({ where: { id: questionId } });
   }
 
-  async addAlternative(
-    questionId: string,
-    data: CreateAlternativeDto,
-    userId: string,
-  ) {
+  async addAlternative(questionId: string, data: CreateAlternativeDto, userId: string) {
     await this.assertQuestionOwnership(questionId, userId);
 
     return this.repo.alternative.create({
       data: {
-        text: data.text,
+        text: normalizeQuizText(data.text),
         isCorrect: data.isCorrect,
         questionId,
       },
@@ -245,7 +244,7 @@ export class QuizService {
     return this.repo.alternative.update({
       where: { id: alternativeId },
       data: {
-        text: data.text,
+        text: normalizeQuizTextOptional(data.text),
         isCorrect: data.isCorrect,
       },
     });

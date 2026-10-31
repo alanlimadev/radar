@@ -485,4 +485,132 @@ describe('QuizGameDefinition', () => {
     expect(res.events?.some((e) => e.event === 'quizEnded')).toBe(true);
     expect(quizGame.isFinished(res.newState)).toBe(true);
   });
+
+  describe('getResultsReport', () => {
+    const context = {
+      roomId: 'room-1',
+      roomCode: '123456',
+      hostId: 'host-1',
+      createdAt: new Date('2026-10-29T18:01:40.000Z'),
+      gameStartedAt: new Date('2026-10-29T18:02:11.000Z'),
+      endedAt: new Date('2026-10-29T18:11:43.000Z'),
+    };
+
+    const makePlayer = (
+      id: string,
+      name: string,
+      connected = true,
+    ): Player => ({
+      id,
+      name,
+      socketId: `sock-${id}`,
+      isHost: false,
+      connected,
+      joinedAt: new Date(),
+      score: 0,
+      metadata: {},
+    });
+
+    it('should build an empty report when nobody joined', async () => {
+      const state = await quizGame.init(mockConfig, mockContext);
+      const report = quizGame.getResultsReport(state, [], context);
+
+      expect(report.schemaVersion).toBe(1);
+      expect(report.totals.players).toBe(0);
+      expect(report.totals.questions).toBe(2);
+      expect(report.totals.accuracy).toBe(0);
+      expect(report.players).toHaveLength(0);
+      expect(report.questions[0].unanswered).toBe(0);
+    });
+
+    it('should count unanswered questions and keep alternative percentages at 0', async () => {
+      const state = await quizGame.init(mockConfig, mockContext);
+      const player = makePlayer('p1', 'Ana');
+      state.playerNames.set(player.id, player.name);
+      state.playerScores.set(player.id, 0);
+      state.playerCorrectAnswers.set(player.id, 0);
+
+      const report = quizGame.getResultsReport(state, [player], context);
+
+      expect(report.totals.players).toBe(1);
+      expect(report.totals.unanswered).toBe(2);
+      expect(report.questions[0].answered).toBe(0);
+      expect(
+        report.questions[0].alternatives.every(
+          (alternative: any) => alternative.percentage === 0,
+        ),
+      ).toBe(true);
+    });
+
+    it('should compute per-question distribution and percentages summing to 1', async () => {
+      const state = await quizGame.init(mockConfig, mockContext);
+      const players = [
+        makePlayer('p1', 'Ana'),
+        makePlayer('p2', 'Bob'),
+        makePlayer('p3', 'Caio'),
+        makePlayer('p4', 'Duda'),
+      ];
+
+      for (const player of players) {
+        state.playerNames.set(player.id, player.name);
+        state.playerScores.set(player.id, 0);
+        state.playerCorrectAnswers.set(player.id, 0);
+      }
+
+      state.answers.set('quest-1', [
+        {
+          playerId: 'p1',
+          questionId: 'quest-1',
+          alternativeId: 'alt-1',
+          isCorrect: true,
+          answeredAt: new Date('2026-10-29T18:02:31.000Z'),
+        },
+        {
+          playerId: 'p2',
+          questionId: 'quest-1',
+          alternativeId: 'alt-1',
+          isCorrect: true,
+          answeredAt: new Date('2026-10-29T18:02:32.000Z'),
+        },
+        {
+          playerId: 'p3',
+          questionId: 'quest-1',
+          alternativeId: 'alt-2',
+          isCorrect: false,
+          answeredAt: new Date('2026-10-29T18:02:33.000Z'),
+        },
+      ]);
+
+      const report = quizGame.getResultsReport(state, players, context);
+      const question = report.questions[0];
+
+      expect(question.answered).toBe(3);
+      expect(question.correct).toBe(2);
+      expect(question.incorrect).toBe(1);
+      expect(question.unanswered).toBe(1);
+      expect(question.accuracy).toBeCloseTo(2 / 3);
+      expect(
+        question.alternatives.reduce(
+          (sum: number, alternative: any) => sum + alternative.percentage,
+          0,
+        ),
+      ).toBeCloseTo(1);
+      expect(report.totals.answers).toBe(3);
+    });
+
+    it('should mark players that left early and compute session duration', async () => {
+      const state = await quizGame.init(mockConfig, mockContext);
+      const player = makePlayer('p1', 'Ana', false);
+      state.playerNames.set(player.id, player.name);
+      state.playerScores.set(player.id, 500);
+      state.playerCorrectAnswers.set(player.id, 1);
+
+      const report = quizGame.getResultsReport(state, [player], context);
+
+      expect(report.players[0].leftEarly).toBe(true);
+      expect(report.players[0].rank).toBe(1);
+      expect(report.session.durationMs).toBe(572000);
+      expect(report.session.code).toBe('123456');
+    });
+  });
 });
