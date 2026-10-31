@@ -222,9 +222,17 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Se o jogo terminou, emite encerramento com resultados finais
       if (room.status === 'FINISHED') {
         const results = this.roomManager.getFinalResults(room.code);
-        this.server.to(room.code).emit('radar:gameEnded', { results });
+        const hasReport = this.roomManager.hasPersistedReport(room);
+        const reportId = hasReport ? room.id : null;
+
+        this.server.to(room.code).emit('radar:gameEnded', {
+          results,
+          reportId,
+        });
         // Compatibilidade legada
         this.server.to(room.code).emit('quizEnded', { scores: results });
+
+        this.notifyReportStatus(room, hasReport);
       }
     }
 
@@ -363,16 +371,47 @@ export class RadarGateway implements OnGatewayConnection, OnGatewayDisconnect {
         scores = [];
       }
       this.notifyRoomFinished(roomCode, scores);
+      const room = this.roomManager.findRoom(roomCode);
+      if (room) {
+        this.notifyReportStatus(room, this.roomManager.hasPersistedReport(room));
+      }
     }
     return { success: true };
   }
 
   /**
+   * Avisa o host se o relatório ficou disponível ou se houve falha ao salvar.
+   */
+  notifyReportStatus(room: any, hasReport: boolean) {
+    if (!room?.hostSocketId) return;
+
+    if (hasReport) {
+      this.server.to(room.hostSocketId).emit('radar:reportReady', {
+        reportId: room.id,
+        roomCode: room.code,
+      });
+      return;
+    }
+
+    // Só avisa quando a partida chegou a começar (senão não há relatório).
+    if (room.gameStartedAt) {
+      this.server.to(room.hostSocketId).emit('radar:reportError', {
+        roomCode: room.code,
+        message: 'Não foi possível salvar o relatório da sessão.',
+      });
+    }
+  }
+
+  /**
    * Notifica todos os participantes conectados na sala que a sessão foi finalizada.
    */
-  notifyRoomFinished(roomCode: string, scores?: any[]) {
+  notifyRoomFinished(roomCode: string, scores?: any[], reportId?: string | null) {
     this.server.to(roomCode).emit('radar:roomFinished', { roomCode });
     this.server.to(roomCode).emit('sessionFinished', { roomCode });
     this.server.to(roomCode).emit('quizEnded', { scores: scores || [] });
+    this.server.to(roomCode).emit('radar:gameEnded', {
+      results: scores || [],
+      reportId: reportId ?? null,
+    });
   }
 }

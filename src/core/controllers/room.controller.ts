@@ -152,7 +152,12 @@ export class RoomController {
     } catch {
       scores = [];
     }
-    this.radarGateway.notifyRoomFinished(room.code, scores);
-    return room;
+
+    const hasReport = this.roomManager.hasPersistedReport(room);
+    const reportId = hasReport ? room.id : null;
+
+    this.radarGateway.notifyRoomFinished(room.code, scores, reportId);
+    this.radarGateway.notifyReportStatus(room, hasReport);
+    return { ...room, reportId, hasReport };
   }
 }

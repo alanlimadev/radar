@@ -3,14 +3,24 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Room, RoomStatus } from '../interfaces/room.interface';
 import { Player } from '../interfaces/player.interface';
 import { GameAction, ActionResult } from '../interfaces/game-action.interface';
-import { GameContext, ActionContext } from '../interfaces/game-definition.interface';
+import {
+  GameContext,
+  ActionContext,
+  ResultsReportContext,
+} from '../interfaces/game-definition.interface';
 import { GameRegistryService } from './game-registry.service';
 import { PinUtil } from '../network/pin.util';
+import { RoomRepository } from '../persistence/room.repository';
+
+const ROOM_MEMORY_TTL_MS = 10 * 60 * 1000;
+const PIN_MAX_ATTEMPTS = 10;
 
 @Injectable()
 export class RoomManagerService {
@@ -21,7 +31,10 @@ export class RoomManagerService {
   private readonly roomsById = new Map<string, Room>();
   private readonly socketToRoom = new Map<string, { roomCode: string; playerId?: string; isHost: boolean }>();
 
-  constructor(private readonly gameRegistry: GameRegistryService) {}
+  constructor(
+    private readonly gameRegistry: GameRegistryService,
+    @Optional() private readonly roomRepository?: RoomRepository,
+  ) {}
 
   /**
    * Cria uma nova sala para um jogo registrado.
@@ -37,12 +50,7 @@ export class RoomManagerService {
     }
 
     const roomId = randomUUID();
-    let roomCode = PinUtil.generateNumericPin(6);
-
-    // Garante que o PIN seja único entre as salas ativas
-    while (this.roomsByCode.has(roomCode)) {
-      roomCode = PinUtil.generateNumericPin(6);
-    }
+    const roomCode = await this.generateAvailablePin();
 
     const context: GameContext = {
       roomId,
@@ -69,8 +77,58 @@ export class RoomManagerService {
     this.roomsByCode.set(roomCode, room);
     this.roomsById.set(roomId, room);
 
+    await this.persistRoomCreation(room);
+
     this.logger.log(`🏠 Sala criada [${roomCode}] para o jogo "${gameType}" pelo host "${hostId}"`);
     return room;
+  }
+
+  /**
+   * Sorteia um PIN livre tanto nas salas em memória quanto nos relatórios já
+   * persistidos (evita colisão com a constraint `code @unique`).
+   */
+  private async generateAvailablePin(): Promise<string> {
+    for (let attempt = 0; attempt < PIN_MAX_ATTEMPTS; attempt++) {
+      const candidate = PinUtil.generateNumericPin(6);
+      if (this.roomsByCode.has(candidate)) continue;
+
+      if (this.roomRepository) {
+        try {
+          if (await this.roomRepository.codeExists(candidate)) continue;
+        } catch (error) {
+          // Fail-open: uma falha momentânea do banco não pode impedir a partida.
+          this.logger.error(
+            `Falha ao validar PIN no banco: ${(error as Error).message}`,
+          );
+        }
+      }
+
+      return candidate;
+    }
+
+    throw new ServiceUnavailableException(
+      'Não foi possível gerar um PIN único. Tente novamente em instantes.',
+    );
+  }
+
+  private async persistRoomCreation(room: Room): Promise<void> {
+    if (!this.roomRepository) return;
+
+    try {
+      await this.roomRepository.createRoom({
+        id: room.id,
+        code: room.code,
+        gameType: room.gameType,
+        hostId: room.hostId,
+        config: room.config,
+        startedAt: room.createdAt,
+      });
+    } catch (error) {
+      room.reportPersisted = false;
+      this.logger.error(
+        `Falha ao persistir sala [${room.code}]: ${(error as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -191,6 +249,8 @@ export class RoomManagerService {
       isHost: false,
     });
 
+    await this.persistPlayer(room, player);
+
     const clientState = gameDef.getClientState(room.state, player, false);
 
     return {
@@ -200,6 +260,35 @@ export class RoomManagerService {
       isReconnection,
       events,
     };
+  }
+
+  private async persistPlayer(room: Room, player: Player): Promise<void> {
+    if (!this.roomRepository) return;
+
+    try {
+      await this.roomRepository.upsertPlayer(room.id, player);
+    } catch (error) {
+      room.reportPersisted = false;
+      this.logger.error(
+        `Falha ao persistir jogador "${player.name}" da sala [${room.code}]: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  private async persistScores(room: Room): Promise<void> {
+    if (!this.roomRepository) return;
+
+    try {
+      await this.roomRepository.updateScores(
+        room.id,
+        Array.from(room.players.values()),
+      );
+    } catch (error) {
+      room.reportPersisted = false;
+      this.logger.error(
+        `Falha ao atualizar pontuações da sala [${room.code}]: ${(error as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -252,15 +341,87 @@ export class RoomManagerService {
     // Verifica se o jogo começou ou terminou
     if (room.status === 'LOBBY' && action.type.toUpperCase().includes('START')) {
       room.status = 'IN_PROGRESS';
+      room.gameStartedAt = room.gameStartedAt ?? new Date();
     }
 
     if (gameDef.isFinished(room.state)) {
+      const wasFinished = room.status === 'FINISHED';
       room.status = 'FINISHED';
-      room.endedAt = new Date();
+      room.endedAt = room.endedAt ?? new Date();
+      await this.persistFinishedRoom(room);
+      if (!wasFinished) {
+        this.scheduleRoomCleanup(room);
+      }
       this.logger.log(`🏁 Partida da sala [${room.code}] foi finalizada!`);
+    } else {
+      // Best-effort: falhas aqui não interrompem a partida.
+      void this.persistScores(room);
     }
 
     return result;
+  }
+
+  /**
+   * Grava o snapshot final (idempotente) e mantém a sala em memória por uma
+   * janela curta para reconexões tardias.
+   */
+  private async persistFinishedRoom(room: Room): Promise<void> {
+    if (!this.roomRepository) return;
+    if (room.reportPersisted === true) return;
+
+    const playersList = Array.from(room.players.values());
+    const gameDef = this.gameRegistry.get(room.gameType);
+    const endedAt = room.endedAt ?? new Date();
+
+    let results: any = null;
+    if (room.gameStartedAt && gameDef?.getResultsReport) {
+      const context: ResultsReportContext = {
+        roomId: room.id,
+        roomCode: room.code,
+        hostId: room.hostId,
+        createdAt: room.createdAt,
+        gameStartedAt: room.gameStartedAt,
+        endedAt,
+      };
+
+      try {
+        results = gameDef.getResultsReport(
+          room.state,
+          playersList,
+          context,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Falha ao montar relatório da sala [${room.code}]: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    try {
+      await this.roomRepository.finishRoom({
+        roomId: room.id,
+        endedAt,
+        results,
+        players: playersList,
+      });
+      room.reportPersisted = results !== null;
+    } catch (error) {
+      room.reportPersisted = false;
+      this.logger.error(
+        `Falha ao persistir relatório da sala [${room.code}]: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  private scheduleRoomCleanup(room: Room): void {
+    const timer = setTimeout(() => {
+      this.roomsByCode.delete(room.code);
+      this.roomsById.delete(room.id);
+      this.logger.log(`🧹 Sala [${room.code}] removida da memória.`);
+    }, ROOM_MEMORY_TTL_MS);
+
+    // Não mantém o processo vivo (ex.: testes e scripts).
+    (timer as any).unref?.();
   }
 
   /**
@@ -350,12 +511,25 @@ export class RoomManagerService {
     const room = this.findRoom(roomCodeOrId);
     if (!room) throw new NotFoundException('Sala não encontrada.');
 
+    const wasFinished = room.status === 'FINISHED';
     room.status = 'FINISHED';
-    room.endedAt = new Date();
+    room.endedAt = room.endedAt ?? new Date();
     if (room.state && typeof room.state === 'object') {
       (room.state as any).status = 'GAME_OVER';
     }
+
+    await this.persistFinishedRoom(room);
+
+    if (!wasFinished) {
+      this.scheduleRoomCleanup(room);
+    }
+
     return room;
+  }
+
+  /** Indica se a sala possui um relatório persistido disponível. */
+  hasPersistedReport(room: Room): boolean {
+    return Boolean(room.gameStartedAt) && room.reportPersisted === true;
   }
 
   /**
