@@ -1,43 +1,42 @@
 services:
-  postgresql:
-    image: postgres
-    container_name: postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    networks:
-      - app-network
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U admin -d radardb']
-      interval: 10s
-      timeout: 5s
-      retries: 5
   api:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: api
+      dockerfile: Dockerfile.dev
+    container_name: radar-api
     ports:
-      - '${PORT}:${PORT}'
+      - '${PORT:-3333}:3333'
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      PORT: ${PORT}
-      NODE_ENV: ${NODE_ENV}
+      DATABASE_URL: 'file:/data/radar.db'
+      PORT: ${PORT:-3333}
+      NODE_ENV: ${NODE_ENV:-development}
       JWT_SECRET: ${JWT_SECRET}
-    depends_on:
-      postgresql:
-        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - radar-data:/data
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
     networks:
       - app-network
-    command: sh -c "npx prisma migrate deploy && npm run start:prod"
+
+  web:
+    build:
+      context: ../qonect
+      dockerfile: Dockerfile.dev
+    container_name: qonect-web
+    ports:
+      - '5173:5173'
+    volumes:
+      - ../qonect:/app
+      - /app/node_modules
+    command: sh -c "npm run dev"
+    networks:
+      - app-network
+    depends_on:
+      - api
 
 volumes:
-  postgres_data:
+  radar-data:
 
 networks:
   app-network:

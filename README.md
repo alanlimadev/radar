@@ -49,8 +49,8 @@ Este projeto é desenvolvido no âmbito de um Trabalho de Conclusão de Curso (T
 |  +-----------------------------------+-------------------------------+  |
 |                                      |                                  |
 |  +-----------------------------------+-------------------------------+  |
-|  | INFRAESTRUTURA & SUPORTE                                          |  |
-|  |  - AuthModule (JWT para Hosts)    - PrismaService (PostgreSQL)    |  |
+|  | INFRAESTRUTURA & SUPORTE                                          |  | 
+|  |  - AuthModule (JWT para Hosts)    - PrismaService (SQLite)        |  | 
 |  +-------------------------------------------------------------------+  |
 +-------------------------------------------------------------------------+
 ```
@@ -85,7 +85,7 @@ src/
 
 ### Pré-requisitos
 - **Node.js**: v20 ou superior
-- **Docker** e **Docker Compose** (recomendado para banco de dados e produção)
+- **Docker** e **Docker Compose** (recomendado para subir backend + frontend sem buildar executável)
 - Gerenciador de pacotes **npm**
 
 ---
@@ -95,22 +95,19 @@ src/
 Crie um arquivo `.env` na raiz do diretório `radar/`:
 
 ```env
-POSTGRES_DB=radardb
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=radarsecret
-DATABASE_URL=postgresql://admin:radarsecret@localhost:5432/radardb?schema=public
+DATABASE_URL="file:./radar.db"
 PORT=3333
 NODE_ENV=development
 JWT_SECRET=substitua_por_uma_chave_secreta_longa_e_segura_para_geracao_jwt
 ```
 
-> **Nota para Docker:** Se for rodar a aplicação em contêiner via `docker-compose.yml`, o `DATABASE_URL` deve apontar para o hostname do serviço do banco (`@postgresql:5432`), conforme já configurado no `docker-compose.yml`.
+O banco de dados é **SQLite** (arquivo `radar.db` na pasta `prisma/`), não sendo necessário instalar ou rodar um PostgreSQL separado.
 
 ---
 
 ### 2. Execução com Docker (Recomendado)
 
-Sobe o banco PostgreSQL e o backend compilado com apenas um comando:
+Sobe o backend (API) e o frontend (Web) com hot-reload, sem necessidade de buildar um executável:
 
 ```bash
 # Iniciar os serviços em segundo plano:
@@ -123,27 +120,42 @@ docker compose logs -f
 docker compose down
 ```
 
+Serviços disponíveis:
+
+| Serviço | Porta | Descrição |
+|---|---|---|
+| `api` (backend) | `3333` | API REST + WebSocket (Socket.IO) |
+| `web` (frontend) | `5173` | Vite dev server (React) |
+
+Acesse o frontend em **http://localhost:5173** e a documentação Swagger do backend em **http://localhost:3333/swagger**.
+
+O banco SQLite persiste no volume Docker `radar-data`, então os dados não são perdidos ao reiniciar os containers.
+
 ---
 
 ### 3. Execução em Modo de Desenvolvimento Local
 
-Se preferir rodar a aplicação no Node.js local (por exemplo, subindo apenas o PostgreSQL via Docker):
+Se preferir rodar a aplicação no Node.js local (sem Docker):
 
 ```bash
-# 1. Subir apenas o PostgreSQL:
-docker compose up postgresql -d
-
-# 2. Instalar as dependências:
+# 1. Instalar as dependências do backend:
 npm install
 
-# 3. Aplicar as migrations do Prisma:
+# 2. Aplicar as migrations do Prisma (SQLite):
 npx prisma migrate dev
 
-# 4. Iniciar o servidor com hot-reload:
+# 3. Iniciar o servidor com hot-reload:
 npm run start:dev
 ```
 
-A aplicação estará disponível em `http://localhost:3333` (ou no IP local da sua máquina na rede WLAN, ex: `http://192.168.1.100:3333`).
+Em outro terminal, para o frontend (`qonect/`):
+
+```bash
+npm install
+npm run dev
+```
+
+O backend estará disponível em `http://localhost:3333` (ou no IP local da sua máquina na rede WLAN, ex: `http://192.168.1.100:3333`) e o frontend em `http://localhost:5173`.
 
 ---
 

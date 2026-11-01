@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-bundle/
+.coverage/
+coverage/
+.git/
+.gitignore
+.env
+Dockerfile
+Dockerfile.dev
+docker-compose.yml
+*.md
+*.pdf
+*.html
