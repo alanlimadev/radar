@@ -1,4 +1,4 @@
-# CLAUDE.md — módulo user (host)
+# AGENTS.md — módulo user (host)
 
 Módulo responsável pelo gerenciamento de perfil dos hosts. O controller (`/users`) existe mas não tem rotas implementadas ainda — é o local correto para adicionar perfil, atualização de dados, etc.
 

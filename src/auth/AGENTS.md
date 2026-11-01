@@ -1,4 +1,4 @@
-# CLAUDE.md — módulo auth
+# AGENTS.md — módulo auth
 
 Responsável por registro de hosts, login e validação de JWT.
 

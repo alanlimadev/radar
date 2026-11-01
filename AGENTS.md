@@ -1,4 +1,4 @@
-# AGENT.md — RADAR Project Guidelines
+# AGENTS.md — RADAR Project Guidelines
 
 This file provides authoritative architectural context, domain invariants, workflows, and conventions for AI agents working in this repository.
 
@@ -122,8 +122,10 @@ npm run build            # Compile TypeScript build
 
 # Testing
 npm test                 # Run Jest unit tests (must pass before pushing)
+npm run test:e2e         # End-to-end tests
 npm run test:cov         # Generate code coverage report
-npm test -- path/to/spec.ts # Run a specific test suite
+npm test -- path/to/spec.ts   # Run a specific test suite
+jest path/to/file.spec.ts     # Run a single test file
 
 # Code Quality
 npm run lint             # ESLint with auto-fix
@@ -131,6 +133,7 @@ npm run format           # Prettier formatting
 
 # Prisma ORM & Database
 npx prisma migrate dev --name <migration_name> # Generate and apply DB migration
+npx prisma migrate deploy             # Apply pending migrations (used in production)
 npx prisma generate                            # Regenerate Prisma Client
 npx prisma studio                              # Web UI for database inspection
 
@@ -147,7 +150,25 @@ npm run build:app            # Run from radar to compile all and build Qonect_1.
 
 ---
 
-## 6. Commit Convention
+## 6. Environment Variables
+
+Required in `.env`:
+
+```env
+POSTGRES_DB=radardb
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=<password>
+DATABASE_URL=postgresql://admin:<password>@localhost:5432/radardb?schema=public
+PORT=3333
+NODE_ENV=development
+JWT_SECRET=<long-random-string>
+```
+
+When running in Docker Compose, change `@localhost:` to `@postgresql:` in `DATABASE_URL`.
+
+---
+
+## 7. Commit Convention
 
 **Strict Conventional Commits in English.**
 
@@ -163,7 +184,7 @@ npm run build:app            # Run from radar to compile all and build Qonect_1.
 
 ---
 
-## 7. Desktop Executable Build Workflow
+## 8. Desktop Executable Build Workflow
 
 When tasked with generating, packaging, or modifying the standalone desktop installer (`.exe`):
 

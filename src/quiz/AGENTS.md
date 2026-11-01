@@ -1,4 +1,4 @@
-# CLAUDE.md — módulo quiz
+# AGENTS.md — módulo quiz
 
 Gerencia quizzes, perguntas e alternativas. Todas as rotas exigem JWT (`JwtAuthGuard` aplicado no controller inteiro).
 

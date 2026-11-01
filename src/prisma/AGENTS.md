@@ -1,4 +1,4 @@
-# CLAUDE.md — módulo prisma
+# AGENTS.md — módulo prisma
 
 Fornece `PrismaService` como singleton compartilhado para toda a aplicação. `PrismaModule` é global — não precisa ser importado em cada módulo.
 
