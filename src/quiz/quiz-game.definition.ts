@@ -22,6 +22,7 @@ export interface QuizQuestion {
   id: string;
   text: string;
   order: number;
+  timeLimitSeconds?: number;
   alternatives: Array<{
     id: string;
     text: string;
@@ -107,6 +108,7 @@ export class QuizGameDefinition
         id: q.id,
         text: q.text,
         order: q.order,
+        timeLimitSeconds: q.timeLimitSeconds ?? 30,
         alternatives: q.alternatives.map((a) => ({
           id: a.id,
           text: a.text,
@@ -118,7 +120,10 @@ export class QuizGameDefinition
     return {
       quizId: config.quizId,
       title: title || 'Quiz',
-      questions: questions || [],
+      questions: (questions || []).map((q) => ({
+        ...q,
+        timeLimitSeconds: q.timeLimitSeconds ?? 30,
+      })),
       currentQuestionIndex: 0,
       answers: new Map(),
       playerScores: new Map(),
@@ -183,6 +188,7 @@ export class QuizGameDefinition
                 },
                 currentQuestionIndex: 0,
                 totalQuestions: state.questions.length,
+                timeLimitSeconds: currentQ.timeLimitSeconds ?? 30,
               },
             },
           ],
@@ -404,6 +410,7 @@ export class QuizGameDefinition
                   },
                   currentQuestionIndex: state.currentQuestionIndex,
                   totalQuestions: state.questions.length,
+                  timeLimitSeconds: nextQ.timeLimitSeconds ?? 30,
                 },
               },
             ],
@@ -454,6 +461,7 @@ export class QuizGameDefinition
           id: currentQ.id,
           text: currentQ.text,
           order: currentQ.order,
+          timeLimitSeconds: currentQ.timeLimitSeconds ?? 30,
           alternatives: currentQ.alternatives.map((alt) => ({
             id: alt.id,
             text: alt.text,

@@ -7,6 +7,9 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   IsBoolean,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -40,6 +43,13 @@ export class CreateQuestionDto {
   @IsNotEmpty()
   text: string;
 
+  @ApiProperty({ example: 30, required: false, minimum: 5, maximum: 300 })
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(300)
+  timeLimitSeconds?: number;
+
   @ApiProperty({ type: [CreateAlternativeDto] })
   @IsArray()
   @ArrayMinSize(4)
@@ -70,6 +80,13 @@ export class UpdateQuestionDto {
   @IsOptional()
   @IsString()
   text?: string;
+
+  @ApiProperty({ example: 30, required: false, minimum: 5, maximum: 300 })
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(300)
+  timeLimitSeconds?: number;
 
   @ApiProperty({ type: [UpdateQuestionAlternativeDto], required: false })
   @IsOptional()

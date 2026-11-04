@@ -29,7 +29,7 @@ const REQUIRED_SCHEMA: Record<string, string[]> = {
   ],
   room_players: ['id', 'name', 'roomId', 'score', 'metadata', 'joinedAt'],
   quizzes: ['id', 'title', 'description', 'createdBy'],
-  questions: ['id', 'text', 'order', 'quizId'],
+  questions: ['id', 'text', 'order', 'timeLimitSeconds', 'quizId'],
   alternatives: ['id', 'text', 'isCorrect', 'questionId'],
 };
 

@@ -66,12 +66,13 @@ model Quiz {
 }
 
 model Question {
-    id           String        @id @default(uuid())
-    text         String
-    order        Int
-    quizId       String
-    quiz         Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
-    alternatives Alternative[]
+    id               String        @id @default(uuid())
+    text             String
+    order            Int
+    timeLimitSeconds Int           @default(30)
+    quizId           String
+    quiz             Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+    alternatives     Alternative[]
 
     @@map("questions")
 }
