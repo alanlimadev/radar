@@ -35,14 +35,12 @@ describe('Auth (e2e) — cadastro e login por username', () => {
     const register = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
-        name: 'Alan Lima',
         username: '  Alan.Lima  ',
         password: 'senha123',
       })
       .expect(201);
 
     expect(register.body.user).toMatchObject({
-      name: 'Alan Lima',
       username: 'alan.lima',
     });
     expect(register.body.user).not.toHaveProperty('email');
@@ -51,7 +49,6 @@ describe('Auth (e2e) — cadastro e login por username', () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({
-        name: 'Outro Alan',
         username: 'alan.lima',
         password: 'senha123',
       })
@@ -64,7 +61,6 @@ describe('Auth (e2e) — cadastro e login por username', () => {
 
     expect(login.body.access_token).toBeDefined();
     expect(login.body.user).toMatchObject({
-      name: 'Alan Lima',
       username: 'alan.lima',
     });
     expect(login.body.user).not.toHaveProperty('email');
@@ -79,7 +75,6 @@ describe('Auth (e2e) — cadastro e login por username', () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({
-        name: 'Com Espaço',
         username: 'nome invalido!',
         password: 'senha123',
       })
@@ -90,7 +85,6 @@ describe('Auth (e2e) — cadastro e login por username', () => {
     const professorA = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
-        name: 'Professor A',
         username: 'professor.a',
         password: 'senha123',
       })
@@ -99,7 +93,6 @@ describe('Auth (e2e) — cadastro e login por username', () => {
     const professorB = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
-        name: 'Professor B',
         username: 'professor.b',
         password: 'senha123',
       })

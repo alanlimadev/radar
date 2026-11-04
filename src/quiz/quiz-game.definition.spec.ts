@@ -16,6 +16,7 @@ describe('QuizGameDefinition', () => {
         id: 'quest-1',
         text: 'Qual a capital do Brasil?',
         order: 0,
+        timeLimitSeconds: 20,
         alternatives: [
           { id: 'alt-1', text: 'Brasília', isCorrect: true },
           { id: 'alt-2', text: 'Rio de Janeiro', isCorrect: false },
@@ -25,6 +26,7 @@ describe('QuizGameDefinition', () => {
         id: 'quest-2',
         text: 'Quanto é 2 + 2?',
         order: 1,
+        timeLimitSeconds: 45,
         alternatives: [
           { id: 'alt-3', text: '4', isCorrect: true },
           { id: 'alt-4', text: '5', isCorrect: false },
@@ -164,6 +166,63 @@ describe('QuizGameDefinition', () => {
     expect(result.newState.status).toBe('QUESTION_ACTIVE');
     expect(result.events).toHaveLength(1);
     expect(result.events![0].event).toBe('quizStarted');
+  });
+
+  it('should include the configured time limit in quizStarted and nextQuestion events', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    const hostPlayer: Player = {
+      id: 'host-1',
+      name: 'Host',
+      socketId: 'sock-h',
+      isHost: true,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const actionContext: ActionContext = {
+      ...mockContext,
+      sender: hostPlayer,
+    };
+
+    const startResult = quizGame.onAction(
+      state,
+      {
+        type: 'START_GAME',
+        payload: {},
+        senderId: hostPlayer.id,
+        isHost: true,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    expect(startResult.events?.[0].payload.timeLimitSeconds).toBe(20);
+
+    state.status = 'QUESTION_LEADERBOARD';
+
+    const nextResult = quizGame.onAction(
+      state,
+      {
+        type: 'NEXT_QUESTION',
+        payload: {},
+        senderId: hostPlayer.id,
+        isHost: true,
+        timestamp: new Date(),
+      },
+      actionContext,
+    );
+
+    const nextEvent = nextResult.events?.find((e) => e.event === 'nextQuestion');
+    expect(nextEvent?.payload.timeLimitSeconds).toBe(45);
+  });
+
+  it('should expose the time limit in the client state', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+
+    const clientState = quizGame.getClientState(state, undefined, true);
+
+    expect(clientState.currentQuestion.timeLimitSeconds).toBe(20);
   });
 
   it('should compute scores when player submits correct answer', async () => {

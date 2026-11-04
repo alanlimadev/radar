@@ -76,6 +76,88 @@ describe('QuizService — isolamento por usuário', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('createQuiz persiste o tempo configurado de cada pergunta', async () => {
+    repo.quiz.create.mockResolvedValue({});
+
+    await service.createQuiz({
+      title: 'Quiz',
+      createdBy: USER_A,
+      questions: [
+        {
+          text: 'Pergunta',
+          timeLimitSeconds: 45,
+          alternatives: [
+            { text: 'A', isCorrect: true },
+            { text: 'B', isCorrect: false },
+            { text: 'C', isCorrect: false },
+            { text: 'D', isCorrect: false },
+          ],
+        },
+      ],
+    });
+
+    expect(repo.quiz.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          questions: {
+            create: expect.arrayContaining([
+              expect.objectContaining({ timeLimitSeconds: 45 }),
+            ]),
+          },
+        }),
+      }),
+    );
+  });
+
+  it('addQuestion persiste o tempo configurado e usa 30 como padrão', async () => {
+    repo.quiz.findUnique.mockResolvedValue({ createdBy: USER_A });
+    repo.question.findFirst.mockResolvedValue(null);
+    repo.question.create.mockResolvedValue({});
+
+    await service.addQuestion(
+      'quiz-1',
+      { text: 'Pergunta', timeLimitSeconds: 20, alternatives: [] },
+      USER_A,
+    );
+
+    expect(repo.question.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timeLimitSeconds: 20 }),
+      }),
+    );
+
+    await service.addQuestion(
+      'quiz-1',
+      { text: 'Pergunta', alternatives: [] },
+      USER_A,
+    );
+
+    expect(repo.question.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timeLimitSeconds: 30 }),
+      }),
+    );
+  });
+
+  it('updateQuestion persiste o tempo configurado', async () => {
+    repo.question.findUnique.mockResolvedValue({
+      quiz: { createdBy: USER_A },
+    });
+    repo.question.update.mockResolvedValue({});
+
+    await service.updateQuestion(
+      'question-1',
+      { text: 'Nova', timeLimitSeconds: 60 },
+      USER_A,
+    );
+
+    expect(repo.question.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timeLimitSeconds: 60 }),
+      }),
+    );
+  });
+
   it('addQuestion exige dono do quiz', async () => {
     repo.quiz.findUnique.mockResolvedValue({ createdBy: USER_A });
 

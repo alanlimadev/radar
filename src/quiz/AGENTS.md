@@ -9,6 +9,10 @@ Gerencia quizzes, perguntas e alternativas. Todas as rotas exigem JWT (`JwtAuthG
 - Deve haver **exatamente 1** alternativa correta por pergunta.
 - Essas regras são validadas no controller via `validateAlternatives()` antes de chamar o service. O service não valida — assumir que os dados chegam corretos ao `QuizService`.
 
+**Tempo de resposta:**
+- Cada pergunta tem `timeLimitSeconds` (inteiro, entre 5 e 300), com padrão **30** para quizzes antigos.
+- O valor é persistido no banco e propagado nos eventos `quizStarted` / `nextQuestion` e em `getClientState`, para o frontend usar no countdown.
+
 **Ownership (isolamento completo por usuário):**
 - `createdBy` é sempre extraído de `req.user.id` (JWT) — nunca vem do body do cliente.
 - `findAllQuizzes(userId)` filtra com `where: { createdBy: userId }`.
@@ -37,6 +41,9 @@ DELETE /quizzes/questions/:questionId        — deletar pergunta (só owner)
 POST   /quizzes/questions/:questionId/alternatives   — adicionar alternativa (só owner)
 PUT    /quizzes/alternatives/:alternativeId          — atualizar alternativa (só owner)
 DELETE /quizzes/alternatives/:alternativeId          — deletar alternativa (só owner)
+
+GET    /quizzes/:id/export                   — exportar quiz como JSON (só owner)
+POST   /quizzes/import                       — importar quiz a partir de JSON (cria novo quiz do usuário)
 ```
 
 ## Atenção: QuizRepository

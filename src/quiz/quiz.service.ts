@@ -38,6 +38,7 @@ export class QuizService {
               create: data.questions.map((q, index) => ({
                 text: normalizeQuizText(q.text),
                 order: index,
+                timeLimitSeconds: q.timeLimitSeconds ?? 30,
                 alternatives: {
                   create: q.alternatives,
                 },
@@ -92,6 +93,81 @@ export class QuizService {
     }
 
     return quiz;
+  }
+
+  /**
+   * Exporta um quiz completo (com perguntas e alternativas) para JSON.
+   * Remove campos internos (createdBy, IDs de banco) para portabilidade.
+   */
+  async exportQuiz(id: string, userId: string) {
+    const quiz = await this.findQuizByIdForUser(id, userId);
+
+    return {
+      title: quiz.title,
+      description: quiz.description ?? '',
+      questions: quiz.questions.map((q) => ({
+        text: q.text,
+        timeLimitSeconds: q.timeLimitSeconds ?? 30,
+        alternatives: q.alternatives.map((a) => ({
+          text: a.text,
+          isCorrect: a.isCorrect,
+        })),
+      })),
+    };
+  }
+
+  /**
+   * Importa um quiz a partir de um objeto JSON exportado.
+   * Cria um novo quiz pertencente ao usuário atual.
+   */
+  async importQuiz(data: {
+    title: string;
+    description?: string;
+    questions: Array<{
+      text: string;
+      timeLimitSeconds?: number;
+      alternatives: Array<{ text: string; isCorrect: boolean }>;
+    }>;
+  }, userId: string) {
+    // Validações básicas
+    if (!data.title?.trim()) {
+      throw new BadRequestException('Título é obrigatório');
+    }
+    if (!data.questions?.length) {
+      throw new BadRequestException('O quiz precisa de pelo menos 1 pergunta');
+    }
+
+    for (let i = 0; i < data.questions.length; i++) {
+      const q = data.questions[i];
+      if (!q.text?.trim()) {
+        throw new BadRequestException(`Pergunta ${i + 1}: enunciado é obrigatório`);
+      }
+      if (!q.alternatives || q.alternatives.length !== 4) {
+        throw new BadRequestException(`Pergunta ${i + 1}: deve ter exatamente 4 alternativas`);
+      }
+      const correctCount = q.alternatives.filter((a) => a.isCorrect).length;
+      if (correctCount !== 1) {
+        throw new BadRequestException(`Pergunta ${i + 1}: exatamente 1 alternativa deve ser correta`);
+      }
+      const timeLimit = q.timeLimitSeconds ?? 30;
+      if (timeLimit < 5 || timeLimit > 300) {
+        throw new BadRequestException(`Pergunta ${i + 1}: tempo deve estar entre 5 e 300 segundos`);
+      }
+    }
+
+    return this.createQuiz({
+      title: normalizeQuizText(data.title),
+      description: normalizeQuizTextOptional(data.description),
+      createdBy: userId,
+      questions: data.questions.map((q, index) => ({
+        text: normalizeQuizText(q.text),
+        timeLimitSeconds: q.timeLimitSeconds ?? 30,
+        alternatives: q.alternatives.map((a) => ({
+          text: normalizeQuizText(a.text),
+          isCorrect: a.isCorrect,
+        })),
+      })),
+    });
   }
 
   async updateQuiz(id: string, data: UpdateQuizDto, userId: string) {
@@ -155,6 +231,7 @@ export class QuizService {
       data: {
         text: normalizeQuizText(data.text),
         order: nextOrder,
+        timeLimitSeconds: data.timeLimitSeconds ?? 30,
         quizId,
         alternatives: data.alternatives
           ? { create: data.alternatives }
@@ -174,7 +251,10 @@ export class QuizService {
     if (!data.alternatives) {
       return this.repo.question.update({
         where: { id: questionId },
-        data: { text: normalizeQuizTextOptional(data.text) },
+        data: {
+          text: normalizeQuizTextOptional(data.text),
+          timeLimitSeconds: data.timeLimitSeconds,
+        },
       });
     }
 
@@ -199,7 +279,10 @@ export class QuizService {
     return this.prisma.$transaction(async (tx) => {
       await tx.question.update({
         where: { id: questionId },
-        data: { text: normalizeQuizTextOptional(data.text) },
+        data: {
+          text: normalizeQuizTextOptional(data.text),
+          timeLimitSeconds: data.timeLimitSeconds,
+        },
       });
 
       for (const alt of alternatives) {

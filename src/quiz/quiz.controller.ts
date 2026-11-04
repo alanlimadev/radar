@@ -221,4 +221,60 @@ export class QuizController {
     }
     return this.quizService.deleteAlternative(alternativeId, req.user.id);
   }
+
+  @Get(':id/export')
+  @ApiResponse({ status: 200, description: 'Exporta o quiz como JSON.' })
+  @ApiResponse({ status: 403, description: 'Quiz de outro usuário.' })
+  async exportQuiz(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.quizService.exportQuiz(id, req.user.id);
+  }
+
+  @Post('import')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', example: 'Quiz Importado' },
+        description: { type: 'string', example: 'Descrição opcional' },
+        questions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', example: 'Pergunta?' },
+              timeLimitSeconds: { type: 'integer', example: 30, minimum: 5, maximum: 300 },
+              alternatives: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    text: { type: 'string', example: 'Alternativa A' },
+                    isCorrect: { type: 'boolean', example: true },
+                  },
+                },
+              },
+            },
+            required: ['text', 'alternatives'],
+          },
+        },
+      },
+      required: ['title', 'questions'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Quiz importado com sucesso.' })
+  @ApiResponse({ status: 400, description: 'Dados de importação inválidos.' })
+  async importQuiz(
+    @Body() data: {
+      title: string;
+      description?: string;
+      questions: Array<{
+        text: string;
+        timeLimitSeconds?: number;
+        alternatives: Array<{ text: string; isCorrect: boolean }>;
+      }>;
+    },
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.quizService.importQuiz(data, req.user.id);
+  }
 }
