@@ -41,6 +41,7 @@ export interface PlayerAnswerRecord {
   questionId: string;
   alternativeId: string;
   isCorrect: boolean;
+  pointsAwarded: number;
   answeredAt: Date;
 }
 
@@ -170,29 +171,7 @@ export class QuizGameDefinition
         state.status = 'QUESTION_ACTIVE';
         state.currentQuestionIndex = 0;
 
-        const currentQ = state.questions[0];
-
-        return {
-          newState: state,
-          events: [
-            {
-              event: 'quizStarted',
-              payload: {
-                question: {
-                  id: currentQ.id,
-                  text: currentQ.text,
-                  alternatives: currentQ.alternatives.map((a) => ({
-                    id: a.id,
-                    text: a.text,
-                  })),
-                },
-                currentQuestionIndex: 0,
-                totalQuestions: state.questions.length,
-                timeLimitSeconds: currentQ.timeLimitSeconds ?? 30,
-              },
-            },
-          ],
-        };
+        return { newState: state };
       }
 
       case 'SUBMIT_ANSWER': {
@@ -239,6 +218,7 @@ export class QuizGameDefinition
             questionId: targetQuestion.id,
             alternativeId,
             isCorrect,
+            pointsAwarded: isCorrect ? pointsAwarded : 0,
             answeredAt: new Date(),
           });
           state.answers.set(targetQuestion.id, qAnswers);
@@ -261,54 +241,23 @@ export class QuizGameDefinition
           }
         }
 
-        const events: any[] = [];
+        // Se todos os jogadores ativos responderam:
+        // Se for a última pergunta, finaliza direto para GAME_OVER (ranking final / pódio)
+        // Caso contrário, transiciona para QUESTION_LEADERBOARD.
+        // O estado é a única fonte de verdade: o cliente recebe tudo via
+        // `radar:stateUpdated`, sem eventos específicos de quiz.
         const activePlayers = context.players.filter((p) => !p.isHost);
         const allAnswered =
           activePlayers.length > 0 && qAnswers.length >= activePlayers.length;
 
-        // Se todos os jogadores ativos responderam:
-        // Se for a última pergunta, finaliza direto para GAME_OVER (ranking final / pódio)
-        // Caso contrário, transiciona para QUESTION_LEADERBOARD
         if (allAnswered) {
           const isLastQuestion =
             state.currentQuestionIndex >= state.questions.length - 1;
-          const scores = this.getFinalResults(state, context.players);
-          const correctAlt = targetQuestion.alternatives.find(
-            (a) => a.isCorrect,
-          );
-
-          events.push({
-            event: 'scoresUpdate',
-            payload: { scores },
-          });
-
-          events.push({
-            event: 'questionEnded',
-            payload: {
-              questionId: targetQuestion.id,
-              correctAlternativeId: correctAlt?.id,
-              scores,
-              currentQuestionIndex: state.currentQuestionIndex,
-              totalQuestions: state.questions.length,
-              totalAnswers: qAnswers.length,
-              totalPlayers: activePlayers.length,
-            },
-          });
-
-          if (isLastQuestion) {
-            state.status = 'GAME_OVER';
-            events.push({
-              event: 'quizEnded',
-              payload: { scores },
-            });
-          } else {
-            state.status = 'QUESTION_LEADERBOARD';
-          }
+          state.status = isLastQuestion ? 'GAME_OVER' : 'QUESTION_LEADERBOARD';
         }
 
         return {
           newState: state,
-          events: events.length > 0 ? events : undefined,
           directResponse: {
             success: true,
             isCorrect,
@@ -322,114 +271,24 @@ export class QuizGameDefinition
           throw new Error('Apenas o host pode avançar as perguntas');
         }
 
-        const currentQ = state.questions[state.currentQuestionIndex];
-        const activePlayers = context.players.filter((p) => !p.isHost);
-        const qAnswers = currentQ ? state.answers.get(currentQ.id) || [] : [];
-
-        // Se a pergunta ainda está ativa, o host está encerrando a pergunta
+        // Se a pergunta ainda está ativa, o host está encerrando a pergunta.
         if (state.status === 'QUESTION_ACTIVE') {
           const isLastQuestion =
             state.currentQuestionIndex >= state.questions.length - 1;
-          const scores = this.getFinalResults(state, context.players);
-          const correctAlt = currentQ?.alternatives.find((a) => a.isCorrect);
-
-          if (isLastQuestion) {
-            state.status = 'GAME_OVER';
-            return {
-              newState: state,
-              events: [
-                {
-                  event: 'scoresUpdate',
-                  payload: { scores },
-                },
-                {
-                  event: 'questionEnded',
-                  payload: {
-                    questionId: currentQ?.id,
-                    correctAlternativeId: correctAlt?.id,
-                    scores,
-                    currentQuestionIndex: state.currentQuestionIndex,
-                    totalQuestions: state.questions.length,
-                    totalAnswers: qAnswers.length,
-                    totalPlayers: activePlayers.length,
-                  },
-                },
-                {
-                  event: 'quizEnded',
-                  payload: { scores },
-                },
-              ],
-            };
-          }
-
-          state.status = 'QUESTION_LEADERBOARD';
-
-          return {
-            newState: state,
-            events: [
-              {
-                event: 'scoresUpdate',
-                payload: { scores },
-              },
-              {
-                event: 'questionEnded',
-                payload: {
-                  questionId: currentQ?.id,
-                  correctAlternativeId: correctAlt?.id,
-                  scores,
-                  currentQuestionIndex: state.currentQuestionIndex,
-                  totalQuestions: state.questions.length,
-                  totalAnswers: qAnswers.length,
-                  totalPlayers: activePlayers.length,
-                },
-              },
-            ],
-          };
+          state.status = isLastQuestion ? 'GAME_OVER' : 'QUESTION_LEADERBOARD';
+          return { newState: state };
         }
 
         // Se já está no Leaderboard, avança para a próxima pergunta ou encerra o quiz
         if (state.currentQuestionIndex < state.questions.length - 1) {
           state.currentQuestionIndex += 1;
           state.status = 'QUESTION_ACTIVE';
-
-          const nextQ = state.questions[state.currentQuestionIndex];
-
-          return {
-            newState: state,
-            events: [
-              {
-                event: 'nextQuestion',
-                payload: {
-                  question: {
-                    id: nextQ.id,
-                    text: nextQ.text,
-                    alternatives: nextQ.alternatives.map((a) => ({
-                      id: a.id,
-                      text: a.text,
-                    })),
-                  },
-                  currentQuestionIndex: state.currentQuestionIndex,
-                  totalQuestions: state.questions.length,
-                  timeLimitSeconds: nextQ.timeLimitSeconds ?? 30,
-                },
-              },
-            ],
-          };
-        } else {
-          // Última pergunta -> Finaliza o jogo
-          state.status = 'GAME_OVER';
-          const finalScores = this.getFinalResults(state, context.players);
-
-          return {
-            newState: state,
-            events: [
-              {
-                event: 'quizEnded',
-                payload: { scores: finalScores },
-              },
-            ],
-          };
+          return { newState: state };
         }
+
+        // Última pergunta -> Finaliza o jogo
+        state.status = 'GAME_OVER';
+        return { newState: state };
       }
 
       case 'GET_SCORES': {
@@ -437,13 +296,16 @@ export class QuizGameDefinition
         return {
           newState: state,
           directResponse: scores,
-          events: [
-            {
-              event: 'scoresUpdate',
-              payload: { scores },
-            },
-          ],
         };
+      }
+
+      case 'FINISH_GAME':
+      case 'FINISH_QUIZ': {
+        if (!isHost) {
+          throw new Error('Apenas o host pode finalizar o quiz');
+        }
+        state.status = 'GAME_OVER';
+        return { newState: state };
       }
 
       default:
@@ -453,8 +315,9 @@ export class QuizGameDefinition
 
   getClientState(state: QuizState, forPlayer?: Player, isHost?: boolean): any {
     const currentQ = state.questions[state.currentQuestionIndex];
-    const isLeaderboardOrOver =
-      state.status === 'QUESTION_LEADERBOARD' || state.status === 'GAME_OVER';
+    const isLeaderboard = state.status === 'QUESTION_LEADERBOARD';
+    const isGameOver = state.status === 'GAME_OVER';
+    const revealAnswer = Boolean(isHost) || isLeaderboard || isGameOver;
 
     const sanitizedQuestion = currentQ
       ? {
@@ -466,26 +329,50 @@ export class QuizGameDefinition
             id: alt.id,
             text: alt.text,
             // Revela isCorrect para o Host OU quando a rodada encerrou (Leaderboard / Game Over)
-            isCorrect:
-              isHost || isLeaderboardOrOver ? alt.isCorrect : undefined,
+            isCorrect: revealAnswer ? alt.isCorrect : undefined,
           })),
         }
       : null;
 
     const qAnswers = currentQ ? state.answers.get(currentQ.id) || [] : [];
+    const myAnswerRecord = forPlayer
+      ? qAnswers.find((answer) => answer.playerId === forPlayer.id)
+      : undefined;
+    const correctAlternative = currentQ?.alternatives.find(
+      (alternative) => alternative.isCorrect,
+    );
 
+    // A UI do Qonect renderiza lobby, questão, cronômetro, feedback e ranking
+    // inteiramente a partir deste snapshot (entregue via `radar:stateUpdated`).
     return {
       title: state.title,
       status: state.status,
-      isLeaderboard: state.status === 'QUESTION_LEADERBOARD',
+      isLeaderboard,
       currentQuestionIndex: state.currentQuestionIndex,
       totalQuestions: state.questions.length,
-      currentQuestion: sanitizedQuestion,
+      // Perguntas só são expostas depois que a partida começa.
+      currentQuestion: state.status === 'LOBBY' ? null : sanitizedQuestion,
       totalAnswers: qAnswers.length,
-      isFinished: state.status === 'GAME_OVER',
+      totalPlayers: state.playerScores.size,
+      isFinished: isGameOver,
       myScore: forPlayer
         ? state.playerScores.get(forPlayer.id) || 0
         : undefined,
+      myCorrectAnswers: forPlayer
+        ? state.playerCorrectAnswers.get(forPlayer.id) || 0
+        : undefined,
+      myAnswer: myAnswerRecord
+        ? {
+            questionId: myAnswerRecord.questionId,
+            alternativeId: myAnswerRecord.alternativeId,
+            isCorrect: myAnswerRecord.isCorrect,
+            pointsAwarded: myAnswerRecord.pointsAwarded,
+          }
+        : null,
+      correctAlternativeId: revealAnswer
+        ? (correctAlternative?.id ?? null)
+        : null,
+      scores: this.getFinalResults(state),
     };
   }
 
@@ -564,7 +451,13 @@ export class QuizGameDefinition
     // fonte da verdade; os mapas do estado cobrem chamadas sem lista.
     const participantMap = new Map<
       string,
-      { id: string; name: string; score: number; correct: number; connected: boolean }
+      {
+        id: string;
+        name: string;
+        score: number;
+        correct: number;
+        connected: boolean;
+      }
     >();
 
     for (const [playerId, name] of state.playerNames?.entries() ?? []) {
@@ -666,9 +559,7 @@ export class QuizGameDefinition
 
     const ranked = participants
       .slice()
-      .sort(
-        (a, b) => b.score - a.score || a.name.localeCompare(b.name),
-      );
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
     const reportPlayers = ranked.map((player, index) => {
       const answers = answersByPlayer.get(player.id) ?? [];

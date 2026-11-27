@@ -15,7 +15,5 @@ export class RadarWsExceptionFilter extends BaseWsExceptionFilter {
     }
 
     client.emit('radar:error', { message });
-    // Mantém compatibilidade com clientes que escutam 'error'
-    client.emit('error', { message });
   }
 }

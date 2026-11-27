@@ -3,19 +3,21 @@ import { RoomManagerService } from '../services/room-manager.service';
 import { GameRegistryService } from '../services/game-registry.service';
 import { QuizGameDefinition } from '../../quiz/quiz-game.definition';
 
-describe('RadarGateway Packet Verification & Size Analysis', () => {
+describe('RadarGateway universal protocol', () => {
   let gateway: RadarGateway;
   let roomManager: RoomManagerService;
   let gameRegistry: GameRegistryService;
   let quizGame: QuizGameDefinition;
 
-  // Mock Socket.IO Server
-  const emittedToRooms: Record<string, Array<{ event: string; data: any }>> = {};
+  // Mock Socket.IO Server: registra tudo que foi emitido, por canal.
+  let emittedByChannel: Record<string, Array<{ event: string; data: any }>>;
+  let emittedToSockets: Array<{ event: string; data: any }>;
+
   const mockServer: any = {
-    to: (room: string) => ({
+    to: (channel: string) => ({
       emit: (event: string, data: any) => {
-        if (!emittedToRooms[room]) emittedToRooms[room] = [];
-        emittedToRooms[room].push({ event, data });
+        if (!emittedByChannel[channel]) emittedByChannel[channel] = [];
+        emittedByChannel[channel].push({ event, data });
       },
     }),
   };
@@ -29,12 +31,13 @@ describe('RadarGateway Packet Verification & Size Analysis', () => {
       leave: jest.fn().mockResolvedValue(undefined),
       emit: jest.fn((event: string, data: any) => {
         emitted.push({ event, data });
+        emittedToSockets.push({ event, data });
       }),
       broadcast: {
-        to: (room: string) => ({
+        to: (channel: string) => ({
           emit: (event: string, data: any) => {
-            if (!emittedToRooms[room]) emittedToRooms[room] = [];
-            emittedToRooms[room].push({ event, data });
+            if (!emittedByChannel[channel]) emittedByChannel[channel] = [];
+            emittedByChannel[channel].push({ event, data });
           },
         }),
       },
@@ -42,16 +45,15 @@ describe('RadarGateway Packet Verification & Size Analysis', () => {
     };
   };
 
-  const measureSocketIoPacket = (event: string, data?: any) => {
-    const jsonStr = data !== undefined ? JSON.stringify([event, data]) : JSON.stringify([event]);
-    // Em Socket.IO v4, o pacote de evento começa com o opcode "42"
-    const wireStr = `42${jsonStr}`;
-    return {
-      jsonBytes: Buffer.byteLength(jsonStr, 'utf8'),
-      wireBytes: Buffer.byteLength(wireStr, 'utf8'),
-      raw: wireStr,
-    };
-  };
+  const eventsFor = (channel: string) => emittedByChannel[channel] ?? [];
+
+  const findEvent = (channel: string, event: string) =>
+    eventsFor(channel).find((entry) => entry.event === event);
+
+  const allEmittedEvents = () => [
+    ...Object.values(emittedByChannel).flat(),
+    ...emittedToSockets,
+  ];
 
   beforeEach(() => {
     quizGame = new QuizGameDefinition();
@@ -60,9 +62,11 @@ describe('RadarGateway Packet Verification & Size Analysis', () => {
     roomManager = new RoomManagerService(gameRegistry);
     gateway = new RadarGateway(roomManager, gameRegistry);
     gateway.server = mockServer;
+    emittedByChannel = {};
+    emittedToSockets = [];
   });
 
-  it('verifies complete lifecycle, packet schemas, and measures exact byte sizes', async () => {
+  it('runs the full quiz lifecycle using only the radar:* protocol', async () => {
     // 1. Host cria sala de quiz com perguntas realistas
     const room = await roomManager.createRoom('host-1', 'quiz', {
       title: 'Quiz de História e Geografia',
@@ -85,7 +89,11 @@ describe('RadarGateway Packet Verification & Size Analysis', () => {
           alternatives: [
             { id: 'alt-eiffel', text: 'Torre Eiffel', isCorrect: true },
             { id: 'alt-coliseu', text: 'Coliseu', isCorrect: false },
-            { id: 'alt-liberdade', text: 'Estátua da Liberdade', isCorrect: false },
+            {
+              id: 'alt-liberdade',
+              text: 'Estátua da Liberdade',
+              isCorrect: false,
+            },
             { id: 'alt-bigben', text: 'Big Ben', isCorrect: false },
           ],
         },
@@ -94,95 +102,178 @@ describe('RadarGateway Packet Verification & Size Analysis', () => {
 
     expect(room.code).toBeDefined();
 
-    // 2. Host conecta e emite joinAsHost
+    // 2. Host entra via radar:joinAsHost
     const hostSocket = createMockSocket('socket-host-1');
-    const hostJoinPayload = { sessionId: room.code };
-    const hostJoinPkt = measureSocketIoPacket('joinAsHost', hostJoinPayload);
-    console.log('\n--- PACOTES DO HOST ---');
-    console.log(`[ENVIO HOST] joinAsHost: ${hostJoinPkt.wireBytes} bytes | Wire: ${hostJoinPkt.raw}`);
-    expect(hostJoinPkt.wireBytes).toBeLessThan(100);
+    const hostJoinResult = await gateway.handleRadarJoinAsHost(
+      { roomCode: room.code },
+      hostSocket as any,
+    );
+    expect(hostJoinResult.success).toBe(true);
 
-    await gateway.handleLegacyJoinAsHost(hostJoinPayload, hostSocket as any);
+    const hostRoomJoined = (hostSocket as any)
+      ._getEmitted()
+      .find((entry: any) => entry.event === 'radar:roomJoined');
+    expect(hostRoomJoined).toBeDefined();
+    expect(hostRoomJoined.data.isHost).toBe(true);
+    expect(hostRoomJoined.data.state.status).toBe('LOBBY');
+    expect(hostRoomJoined.data.state.currentQuestion).toBeNull();
 
-    // 3. Player conecta e emite joinSession
+    // 3. Player entra via radar:joinRoom
     const playerSocket = createMockSocket('socket-player-1');
-    const playerJoinPayload = { sessionId: room.code, playerName: 'Controle-01' };
-    const playerJoinPkt = measureSocketIoPacket('joinSession', playerJoinPayload);
-    console.log(`[ENVIO PLAYER] joinSession: ${playerJoinPkt.wireBytes} bytes | Wire: ${playerJoinPkt.raw}`);
-    expect(playerJoinPkt.wireBytes).toBeLessThan(120);
+    const playerJoinResult = await gateway.handleRadarJoinRoom(
+      { roomCode: room.code, playerName: 'Controle-01' },
+      playerSocket as any,
+    );
+    expect(playerJoinResult.success).toBe(true);
+    expect(playerJoinResult.player.name).toBe('Controle-01');
 
-    const playerJoinedResult = await gateway.handleLegacyJoinSession(playerJoinPayload, playerSocket as any);
-    expect(playerJoinedResult.name).toBe('Controle-01');
+    const playerRoomJoined = (playerSocket as any)
+      ._getEmitted()
+      .find((entry: any) => entry.event === 'radar:roomJoined');
+    expect(playerRoomJoined.data.isHost).toBe(false);
+    expect(playerRoomJoined.data.players).toHaveLength(1);
 
-    // 4. Host inicia o quiz: startQuiz (sem payload)
-    const startQuizPkt = measureSocketIoPacket('startQuiz');
-    console.log(`[ENVIO HOST] startQuiz: ${startQuizPkt.wireBytes} bytes | Wire: ${startQuizPkt.raw}`);
-    expect(startQuizPkt.wireBytes).toBeLessThan(25);
+    const peerJoined = findEvent(room.code, 'radar:playerJoined');
+    expect(peerJoined!.data.player.name).toBe('Controle-01');
+    expect(peerJoined!.data.totalPlayers).toBe(1);
 
-    await gateway.handleLegacyStartQuiz(hostSocket as any);
+    // 4. Host inicia o jogo via radar:dispatchAction
+    const startResult = await gateway.handleRadarDispatchAction(
+      { type: 'START_GAME' },
+      hostSocket as any,
+    );
+    expect(startResult.success).toBe(true);
 
-    // Verifica pacote RECEBIDO pelo player: quizStarted
-    const roomEvents = emittedToRooms[room.code] || [];
-    const quizStartedEvent = roomEvents.find((e) => e.event === 'quizStarted');
-    expect(quizStartedEvent).toBeDefined();
-    const quizStartedPkt = measureSocketIoPacket('quizStarted', quizStartedEvent!.data);
-    console.log('\n--- PACOTES RECEBIDOS PELO CONTROLE/PLAYER ---');
-    console.log(`[RECEBIMENTO] quizStarted: ${quizStartedPkt.wireBytes} bytes`);
-    console.log(`[RECEBIMENTO payload]:`, JSON.stringify(quizStartedEvent!.data, null, 2));
-    expect(quizStartedPkt.wireBytes).toBeGreaterThan(200);
-    expect(quizStartedPkt.wireBytes).toBeLessThan(1500);
+    const hostStartedState = findEvent('socket-host-1', 'radar:stateUpdated');
+    expect(hostStartedState!.data.status).toBe('IN_PROGRESS');
+    expect(hostStartedState!.data.state.status).toBe('QUESTION_ACTIVE');
+    expect(hostStartedState!.data.state.currentQuestion.id).toBe('q-brasil');
+    expect(
+      hostStartedState!.data.state.currentQuestion.alternatives[0].isCorrect,
+    ).toBe(true);
 
-    // 5. Player envia resposta via submitAnswer
-    const submitPayload = {
+    const playerStartedState = findEvent(
+      'socket-player-1',
+      'radar:stateUpdated',
+    );
+    expect(playerStartedState!.data.state.currentQuestion.id).toBe('q-brasil');
+    expect(
+      playerStartedState!.data.state.currentQuestion.alternatives[0].isCorrect,
+    ).toBeUndefined();
+
+    // 5. Player responde via radar:dispatchAction
+    const submitResult = await gateway.handleRadarDispatchAction(
+      {
+        type: 'SUBMIT_ANSWER',
+        payload: { questionId: 'q-brasil', alternativeId: 'alt-bsb' },
+      },
+      playerSocket as any,
+    );
+    expect(submitResult.response.isCorrect).toBe(true);
+    expect(submitResult.response.pointsAwarded).toBe(1000);
+
+    const playerLeaderboard = eventsFor('socket-player-1')
+      .filter((entry) => entry.event === 'radar:stateUpdated')
+      .at(-1);
+    expect(playerLeaderboard!.data.state.isLeaderboard).toBe(true);
+    expect(playerLeaderboard!.data.state.correctAlternativeId).toBe('alt-bsb');
+    expect(playerLeaderboard!.data.state.myAnswer).toMatchObject({
       questionId: 'q-brasil',
       alternativeId: 'alt-bsb',
-    };
-    const submitPkt = measureSocketIoPacket('submitAnswer', submitPayload);
-    console.log(`\n[ENVIO PLAYER] submitAnswer: ${submitPkt.wireBytes} bytes | Wire: ${submitPkt.raw}`);
-    expect(submitPkt.wireBytes).toBeLessThan(120);
+      isCorrect: true,
+      pointsAwarded: 1000,
+    });
+    expect(playerLeaderboard!.data.state.scores[0]).toMatchObject({
+      playerName: 'Controle-01',
+      score: 1000,
+    });
 
-    await gateway.handleLegacySubmitAnswer(submitPayload, playerSocket as any);
+    // 6. Host avança do leaderboard para a próxima questão
+    await gateway.handleRadarDispatchAction(
+      { type: 'NEXT_QUESTION' },
+      hostSocket as any,
+    );
 
-    // Verifica confirmação recebida pelo player: answerSubmitted
-    const playerEmitted = playerSocket._getEmitted();
-    const answerSubmittedEvt = playerEmitted.find((e) => e.event === 'answerSubmitted');
-    expect(answerSubmittedEvt).toBeDefined();
-    expect(answerSubmittedEvt!.data.isCorrect).toBe(true);
-    expect(answerSubmittedEvt!.data.pointsAwarded).toBe(1000);
+    const nextQuestionState = eventsFor('socket-player-1')
+      .filter((entry) => entry.event === 'radar:stateUpdated')
+      .at(-1);
+    expect(nextQuestionState!.data.state.status).toBe('QUESTION_ACTIVE');
+    expect(nextQuestionState!.data.state.currentQuestion.id).toBe('q-franca');
+    expect(nextQuestionState!.data.state.myAnswer).toBeNull();
 
-    const answerSubmittedPkt = measureSocketIoPacket('answerSubmitted', answerSubmittedEvt!.data);
-    console.log(`[RECEBIMENTO] answerSubmitted: ${answerSubmittedPkt.wireBytes} bytes | Wire: ${answerSubmittedPkt.raw}`);
-    expect(answerSubmittedPkt.wireBytes).toBeLessThan(100);
-
-    // 6. Host avança para a próxima pergunta: nextQuestion (sem payload)
-    const nextQuestionPkt = measureSocketIoPacket('nextQuestion');
-    console.log(`\n[ENVIO HOST] nextQuestion: ${nextQuestionPkt.wireBytes} bytes | Wire: ${nextQuestionPkt.raw}`);
-    expect(nextQuestionPkt.wireBytes).toBeLessThan(25);
-
-    // 1º clique do host avança para leaderboard
-    await gateway.handleLegacyNextQuestion(hostSocket as any);
-
-    // 2º clique do host avança para próxima questão
-    await gateway.handleLegacyNextQuestion(hostSocket as any);
-
-    const nextQuestionEvt = (emittedToRooms[room.code] || []).find((e) => e.event === 'nextQuestion');
-    expect(nextQuestionEvt).toBeDefined();
-    const nextQuestionRecvPkt = measureSocketIoPacket('nextQuestion', nextQuestionEvt!.data);
-    console.log(`[RECEBIMENTO] nextQuestion: ${nextQuestionRecvPkt.wireBytes} bytes`);
-    expect(nextQuestionRecvPkt.wireBytes).toBeGreaterThan(200);
-    expect(nextQuestionRecvPkt.wireBytes).toBeLessThan(1500);
-
-    // 7. Player responde a segunda pergunta e finaliza o jogo
-    await gateway.handleLegacySubmitAnswer(
-      { questionId: 'q-franca', alternativeId: 'alt-eiffel' },
+    // 7. Player responde a última pergunta e o jogo termina
+    await gateway.handleRadarDispatchAction(
+      {
+        type: 'SUBMIT_ANSWER',
+        payload: { questionId: 'q-franca', alternativeId: 'alt-eiffel' },
+      },
       playerSocket as any,
     );
 
-    const quizEndedEvt = (emittedToRooms[room.code] || []).find((e) => e.event === 'quizEnded');
-    expect(quizEndedEvt).toBeDefined();
-    const quizEndedPkt = measureSocketIoPacket('quizEnded', quizEndedEvt!.data);
-    console.log(`[RECEBIMENTO] quizEnded: ${quizEndedPkt.wireBytes} bytes`);
-    console.log(`[RECEBIMENTO payload quizEnded]:`, JSON.stringify(quizEndedEvt!.data));
-    expect(quizEndedPkt.wireBytes).toBeLessThan(2000);
+    const gameEnded = findEvent(room.code, 'radar:gameEnded');
+    expect(gameEnded).toBeDefined();
+    expect(gameEnded!.data.results[0]).toMatchObject({
+      playerName: 'Controle-01',
+      score: 2000,
+      correctAnswers: 2,
+    });
+
+    // 8. Nenhum evento legado foi emitido pelo gateway
+    expect(allEmittedEvents().length).toBeGreaterThan(0);
+    for (const entry of allEmittedEvents()) {
+      expect(entry.event.startsWith('radar:')).toBe(true);
+    }
+  });
+
+  it('notifies peers when a player leaves via radar:leaveRoom', async () => {
+    const room = await roomManager.createRoom('host-1', 'quiz', {
+      title: 'Quiz',
+      questions: [
+        {
+          id: 'q1',
+          text: 'Pergunta',
+          order: 0,
+          alternatives: [
+            { id: 'a1', text: 'A', isCorrect: true },
+            { id: 'a2', text: 'B', isCorrect: false },
+          ],
+        },
+      ],
+    });
+
+    const hostSocket = createMockSocket('socket-host');
+    const playerSocket = createMockSocket('socket-player');
+    await gateway.handleRadarJoinAsHost(
+      { roomCode: room.code },
+      hostSocket as any,
+    );
+    await gateway.handleRadarJoinRoom(
+      { roomCode: room.code, playerName: 'Alice' },
+      playerSocket as any,
+    );
+
+    const result = await gateway.handleRadarLeaveRoom(playerSocket as any);
+
+    expect(result.success).toBe(true);
+    expect(playerSocket.leave).toHaveBeenCalledWith(room.code);
+    expect(findEvent(room.code, 'radar:playerLeft')?.data).toMatchObject({
+      playerName: 'Alice',
+    });
+  });
+
+  it('does not expose legacy quiz handlers anymore', () => {
+    const legacyHandlers = [
+      'handleLegacyJoinAsHost',
+      'handleLegacyJoinSession',
+      'handleLegacyStartQuiz',
+      'handleLegacySubmitAnswer',
+      'handleLegacyNextQuestion',
+      'handleLegacyGetScores',
+      'handleLegacyFinishQuiz',
+    ];
+
+    for (const handler of legacyHandlers) {
+      expect((gateway as any)[handler]).toBeUndefined();
+    }
   });
 });

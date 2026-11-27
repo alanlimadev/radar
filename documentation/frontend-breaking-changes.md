@@ -1,5 +1,12 @@
 # Mudanças na API — Guia para o Frontend
 
+> **Documento histórico:** o protocolo legado descrito abaixo foi removido. O contrato
+> atual usa exclusivamente `radar:*`: entre na sala com `radar:joinAsHost` ou
+> `radar:joinRoom`, envie ações com `radar:dispatchAction` (`START_GAME`,
+> `NEXT_QUESTION`, `SUBMIT_ANSWER`, `GET_SCORES`) e atualize a UI a partir de
+> `radar:roomJoined` e `radar:stateUpdated`. Os eventos `quizStarted`,
+> `questionEnded`, `scoresUpdate`, `quizEnded` e `answerSubmitted` não existem mais.
+
 Este documento descreve todas as alterações feitas na API que impactam o frontend, os bugs corrigidos e os ajustes necessários no cliente.
 
 ---

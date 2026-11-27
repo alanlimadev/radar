@@ -122,7 +122,7 @@ não fazia nenhuma recuperação no startup.
 
 ### Sintoma
 
-- Às vezes o `connect`/`quizStarted` não chega ao abrir a página e a UI fica "desconectada"
+- Às vezes o `connect`/`radar:roomJoined` não chega ao abrir a página e a UI fica "desconectada"
   (intermitente).
 - Ao finalizar a partida ou voltar de tela e iniciar outra, a nova sessão não recebe eventos.
 

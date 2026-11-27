@@ -42,6 +42,9 @@ npx prisma generate
 
 echo -e "\n[3/6] Gerando Bundle Standalone do Backend..."
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
+# O ncc copia um radar.db vazio para dist-bundle por causa dos caminhos de template
+# em PrismaService; o bundle final usa apenas index.js, entao remove o resto.
+rm -f dist-bundle/radar.db
 
 echo -e "\n[4/6] Compilando Frontend (qonect)..."
 cd "$FRONTEND_DIR"
@@ -83,11 +86,14 @@ cp "$TEMPLATE_DB" "$SERVER_TARGET/radar.db"
 echo "  radar.db vazio gerado em: $TEMPLATE_DB"
 cd "$FRONTEND_DIR"
 
-# Copiar bibliotecas do Prisma e engines
+# Copiar apenas o runtime do Prisma (@prisma/client + .prisma gerado).
+# O @prisma/engines (~36 MB) e exclusivo da CLI (schema-engine/migrate) e nunca
+# e carregado em runtime pelo servidor embutido.
 MODULES_TARGET="$SERVER_TARGET/node_modules"
 mkdir -p "$MODULES_TARGET"
 rm -rf "$MODULES_TARGET/@prisma" "$MODULES_TARGET/.prisma"
-cp -r "$BACKEND_DIR/node_modules/@prisma" "$MODULES_TARGET/@prisma"
+mkdir -p "$MODULES_TARGET/@prisma"
+cp -r "$BACKEND_DIR/node_modules/@prisma/client" "$MODULES_TARGET/@prisma/client"
 cp -r "$BACKEND_DIR/node_modules/.prisma" "$MODULES_TARGET/.prisma"
 
 echo -e "\n[6/6] Gerando Pacotes Linux com Tauri (.deb e .AppImage)..."
