@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request = require('supertest');
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -9,10 +10,24 @@ import { AppModule } from '../src/app.module';
 describe('Auth (e2e) — cadastro e login por username', () => {
   let app: INestApplication;
   let dataDir: string;
+  let originalDatabaseUrl: string | undefined;
 
   beforeAll(async () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'radar-e2e-'));
+    const dataPath = path.join(dataDir, 'data');
+    fs.mkdirSync(dataPath, { recursive: true });
+
+    originalDatabaseUrl = process.env.DATABASE_URL;
     process.env.RADAR_DATA_DIR = dataDir;
+    process.env.DATABASE_URL = `file:${path.join(dataPath, 'radar.db')}`;
+
+    // Cria um SQLite isolado com o schema atual antes de inicializar o Nest.
+    // `db push` evita depender do histórico PostgreSQL antigo das migrations.
+    execFileSync('npx', ['prisma', 'db', 'push', '--skip-generate'], {
+      cwd: path.join(__dirname, '..'),
+      env: process.env,
+      stdio: 'pipe',
+    });
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -26,9 +41,14 @@ describe('Auth (e2e) — cadastro e login por username', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
     fs.rmSync(dataDir, { recursive: true, force: true });
     delete process.env.RADAR_DATA_DIR;
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    }
   });
 
   it('normaliza o username, bloqueia duplicado e autentica', async () => {

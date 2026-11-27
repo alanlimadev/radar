@@ -164,11 +164,18 @@ describe('QuizGameDefinition', () => {
     );
 
     expect(result.newState.status).toBe('QUESTION_ACTIVE');
-    expect(result.events).toHaveLength(1);
-    expect(result.events![0].event).toBe('quizStarted');
+    expect(result.events).toBeUndefined();
+
+    const clientState = quizGame.getClientState(
+      result.newState,
+      undefined,
+      true,
+    );
+    expect(clientState.currentQuestion.id).toBe('quest-1');
+    expect(clientState.totalQuestions).toBe(2);
   });
 
-  it('should include the configured time limit in quizStarted and nextQuestion events', async () => {
+  it('should expose the configured time limit for the current question in the client state', async () => {
     const state = await quizGame.init(mockConfig, mockContext);
     const hostPlayer: Player = {
       id: 'host-1',
@@ -185,7 +192,7 @@ describe('QuizGameDefinition', () => {
       sender: hostPlayer,
     };
 
-    const startResult = quizGame.onAction(
+    quizGame.onAction(
       state,
       {
         type: 'START_GAME',
@@ -197,11 +204,14 @@ describe('QuizGameDefinition', () => {
       actionContext,
     );
 
-    expect(startResult.events?.[0].payload.timeLimitSeconds).toBe(20);
+    expect(
+      quizGame.getClientState(state, undefined, true).currentQuestion
+        .timeLimitSeconds,
+    ).toBe(20);
 
     state.status = 'QUESTION_LEADERBOARD';
 
-    const nextResult = quizGame.onAction(
+    quizGame.onAction(
       state,
       {
         type: 'NEXT_QUESTION',
@@ -213,16 +223,19 @@ describe('QuizGameDefinition', () => {
       actionContext,
     );
 
-    const nextEvent = nextResult.events?.find((e) => e.event === 'nextQuestion');
-    expect(nextEvent?.payload.timeLimitSeconds).toBe(45);
+    expect(
+      quizGame.getClientState(state, undefined, true).currentQuestion
+        .timeLimitSeconds,
+    ).toBe(45);
   });
 
-  it('should expose the time limit in the client state', async () => {
+  it('should not expose questions before the game starts', async () => {
     const state = await quizGame.init(mockConfig, mockContext);
 
     const clientState = quizGame.getClientState(state, undefined, true);
 
-    expect(clientState.currentQuestion.timeLimitSeconds).toBe(20);
+    expect(clientState.currentQuestion).toBeNull();
+    expect(clientState.totalQuestions).toBe(2);
   });
 
   it('should compute scores when player submits correct answer', async () => {
@@ -267,8 +280,22 @@ describe('QuizGameDefinition', () => {
     expect(result.newState.playerCorrectAnswers?.get(player.id)).toBe(1);
     // Como era o único jogador, já deve transicionar para QUESTION_LEADERBOARD
     expect(result.newState.status).toBe('QUESTION_LEADERBOARD');
-    expect(result.events?.some((e) => e.event === 'questionEnded')).toBe(true);
-    expect(result.events?.some((e) => e.event === 'scoresUpdate')).toBe(true);
+    expect(result.events).toBeUndefined();
+
+    const clientState = quizGame.getClientState(result.newState, player, false);
+    expect(clientState.isLeaderboard).toBe(true);
+    expect(clientState.correctAlternativeId).toBe('alt-1');
+    expect(clientState.myAnswer).toEqual({
+      questionId: 'quest-1',
+      alternativeId: 'alt-1',
+      isCorrect: true,
+      pointsAwarded: 1000,
+    });
+    expect(clientState.scores[0]).toMatchObject({
+      playerId: player.id,
+      score: 1000,
+      correctAnswers: 1,
+    });
   });
 
   it('should remain in QUESTION_ACTIVE when only some players have answered', async () => {
@@ -349,7 +376,7 @@ describe('QuizGameDefinition', () => {
     );
 
     expect(step1.newState.status).toBe('QUESTION_LEADERBOARD');
-    expect(step1.events?.some((e) => e.event === 'questionEnded')).toBe(true);
+    expect(step1.events).toBeUndefined();
 
     // 2nd click: Host avança da tela de Leaderboard para a próxima questão
     const step2 = quizGame.onAction(
@@ -366,7 +393,11 @@ describe('QuizGameDefinition', () => {
 
     expect(step2.newState.status).toBe('QUESTION_ACTIVE');
     expect(step2.newState.currentQuestionIndex).toBe(1);
-    expect(step2.events?.some((e) => e.event === 'nextQuestion')).toBe(true);
+    expect(step2.events).toBeUndefined();
+    expect(
+      quizGame.getClientState(step2.newState, undefined, true).currentQuestion
+        .id,
+    ).toBe('quest-2');
   });
 
   it('should reveal isCorrect to players only on QUESTION_LEADERBOARD or GAME_OVER', async () => {
@@ -468,7 +499,7 @@ describe('QuizGameDefinition', () => {
     expect(finalResults[1].correctAnswers).toBe(1);
   });
 
-  it('should transition directly to GAME_OVER and emit quizEnded when all players answer the last question', async () => {
+  it('should transition directly to GAME_OVER when all players answer the last question', async () => {
     const state = await quizGame.init(mockConfig, mockContext);
     // Config has 2 questions: quest-1 (idx 0), quest-2 (idx 1). Move to quest-2 (last question)
     state.currentQuestionIndex = 1;
@@ -503,7 +534,7 @@ describe('QuizGameDefinition', () => {
     );
 
     expect(res.newState.status).toBe('GAME_OVER');
-    expect(res.events?.some((e) => e.event === 'quizEnded')).toBe(true);
+    expect(res.events).toBeUndefined();
     expect(quizGame.isFinished(res.newState)).toBe(true);
   });
 
@@ -541,8 +572,37 @@ describe('QuizGameDefinition', () => {
     );
 
     expect(res.newState.status).toBe('GAME_OVER');
-    expect(res.events?.some((e) => e.event === 'quizEnded')).toBe(true);
+    expect(res.events).toBeUndefined();
     expect(quizGame.isFinished(res.newState)).toBe(true);
+  });
+
+  it('should finish the game through a universal host action', async () => {
+    const state = await quizGame.init(mockConfig, mockContext);
+    const hostPlayer: Player = {
+      id: 'host-1',
+      name: 'Professor',
+      socketId: 'host-s1',
+      isHost: true,
+      connected: true,
+      joinedAt: new Date(),
+      metadata: {},
+    };
+
+    const result = quizGame.onAction(
+      state,
+      {
+        type: 'FINISH_GAME',
+        payload: {},
+        senderId: hostPlayer.id,
+        isHost: true,
+        timestamp: new Date(),
+      },
+      { ...mockContext, sender: hostPlayer },
+    );
+
+    expect(result.newState.status).toBe('GAME_OVER');
+    expect(result.events).toBeUndefined();
+    expect(quizGame.isFinished(result.newState)).toBe(true);
   });
 
   describe('getResultsReport', () => {
@@ -622,6 +682,7 @@ describe('QuizGameDefinition', () => {
           questionId: 'quest-1',
           alternativeId: 'alt-1',
           isCorrect: true,
+          pointsAwarded: 1000,
           answeredAt: new Date('2026-10-29T18:02:31.000Z'),
         },
         {
@@ -629,6 +690,7 @@ describe('QuizGameDefinition', () => {
           questionId: 'quest-1',
           alternativeId: 'alt-1',
           isCorrect: true,
+          pointsAwarded: 950,
           answeredAt: new Date('2026-10-29T18:02:32.000Z'),
         },
         {
@@ -636,6 +698,7 @@ describe('QuizGameDefinition', () => {
           questionId: 'quest-1',
           alternativeId: 'alt-2',
           isCorrect: false,
+          pointsAwarded: 0,
           answeredAt: new Date('2026-10-29T18:02:33.000Z'),
         },
       ]);

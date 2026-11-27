@@ -514,9 +514,6 @@ export class RoomManagerService {
     const wasFinished = room.status === 'FINISHED';
     room.status = 'FINISHED';
     room.endedAt = room.endedAt ?? new Date();
-    if (room.state && typeof room.state === 'object') {
-      (room.state as any).status = 'GAME_OVER';
-    }
 
     await this.persistFinishedRoom(room);
 

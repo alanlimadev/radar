@@ -1,5 +1,9 @@
 # Bug: WebSocket às vezes não conecta ao abrir a página
 
+> **Nota:** este documento registra uma investigação histórica do protocolo legado.
+> O cliente atual usa `connect`, `radar:roomJoined` e `radar:stateUpdated`; os eventos
+> `quizStarted`, `startQuiz` e `nextQuestion` foram removidos.
+
 ## O que acontece
 
 Em algumas aberturas da página, o WebSocket não estabelece conexão — os eventos `connect` e `quizStarted` nunca chegam e a UI fica travada no estado "desconectado". Em outras aberturas funciona normalmente, sem mudança alguma no código.

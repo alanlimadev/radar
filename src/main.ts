@@ -33,9 +33,13 @@ async function bootstrap() {
     res.on('finish', () => {
       const duration = Date.now() - start;
       if (res.statusCode >= 400) {
-        console.error(`[HTTP ERROR] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`);
+        console.error(
+          `[HTTP ERROR] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`,
+        );
       } else {
-        console.log(`[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`);
+        console.log(
+          `[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${duration}ms)`,
+        );
       }
     });
     next();
@@ -57,19 +61,19 @@ async function bootstrap() {
       
       **URL de conexão**: \`ws://localhost:3333\`
       
-      ### Eventos principais:
-      - \`joinSession\`: Conectar jogador à sessão
-      - \`startQuiz\`: Iniciar quiz (host)
-      - \`submitAnswer\`: Enviar resposta (jogador)
-      - \`nextQuestion\`: Próxima pergunta (host)
-      - \`getScores\`: Buscar placar atual
+      ### Protocolo universal:
+      - \`radar:joinAsHost\`: Conectar o host à sala
+      - \`radar:joinRoom\`: Conectar um jogador à sala
+      - \`radar:dispatchAction\`: Enviar uma ação do jogo (\`{ type, payload }\`)
+      - \`radar:leaveRoom\`: Sair da sala
+      - \`radar:roomJoined\`, \`radar:playerJoined\`, \`radar:playerLeft\`, \`radar:stateUpdated\`, \`radar:gameEnded\`, \`radar:error\`: Eventos emitidos pelo servidor
       
       ### Como usar:
       1. Crie uma sessão via REST API
-      2. Conecte jogadores via WebSocket
-      3. Inicie o quiz e gerencie em tempo real
+      2. Conecte host e jogadores via WebSocket
+      3. Inicie o jogo com \`radar:dispatchAction\` (\`{ "type": "START_GAME" }\`)
       
-      Consulte a documentação completa no código-fonte em \`websocket-events.doc.ts\`
+      Consulte o contrato completo em \`AGENTS.md\` e \`README.md\`
     `,
     )
     .setVersion('1.0')

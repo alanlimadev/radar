@@ -11,7 +11,7 @@ Gerencia quizzes, perguntas e alternativas. Todas as rotas exigem JWT (`JwtAuthG
 
 **Tempo de resposta:**
 - Cada pergunta tem `timeLimitSeconds` (inteiro, entre 5 e 300), com padrão **30** para quizzes antigos.
-- O valor é persistido no banco e propagado nos eventos `quizStarted` / `nextQuestion` e em `getClientState`, para o frontend usar no countdown.
+- O valor é persistido no banco e propagado em `getClientState` / `radar:stateUpdated`, para o frontend usar no countdown.
 
 **Ownership (isolamento completo por usuário):**
 - `createdBy` é sempre extraído de `req.user.id` (JWT) — nunca vem do body do cliente.
