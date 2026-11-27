@@ -59,8 +59,8 @@ src/
 - Rooms are kept in-memory inside `RoomManagerService` for sub-millisecond game loop execution and synchronized with the SQLite `game_rooms` and `room_players` tables.
 
 ### 3.2 Roles & Sockets
-- **Host:** Creates the room (`POST /rooms`) and joins the WebSocket via `radar:joinAsHost` (or legacy `joinAsHost`). The host is **never** added to the `players` map or final player leaderboard.
-- **Player:** Joins via `radar:joinRoom` (or legacy `joinSession`). Gets assigned a unique `playerId` (UUID).
+- **Host:** Creates the room (`POST /rooms`) and joins the WebSocket via `radar:joinAsHost`. The host is **never** added to the `players` map or final player leaderboard.
+- **Player:** Joins via `radar:joinRoom`. Gets assigned a unique `playerId` (UUID).
 - **Reconnection:** If a socket disconnects, the player is flagged `connected: false`. If a client reconnects with the same `playerName` to that `roomCode`, their session is restored and state re-synced.
 - **Anti-Cheat State Segregation:** `IGameDefinition.getClientState(state, forPlayer, isHost)` filters out sensitive state:
   - Players **never** receive `isCorrect: true` on alternatives while questions are active.
@@ -78,7 +78,7 @@ src/
 
 ## 4. WebSocket Event Contracts
 
-The `RadarGateway` exposes two concurrent protocols on the same gateway:
+The `RadarGateway` exposes only the universal `radar:*` protocol. Game-specific state is delivered through `radar:stateUpdated`; optional reducer events are wrapped in `radar:customEvent` and never emitted under raw domain-specific names.
 
 ### 4.1 Universal RADAR Protocol (`radar:*`)
 Used by modern clients and any future game implementations:
@@ -94,20 +94,15 @@ Used by modern clients and any future game implementations:
 | `radar:playerLeft` | Server ➔ Client | `{ playerId, playerName }` |
 | `radar:stateUpdated` | Server ➔ Client | `{ state, status }` (Filtered per recipient) |
 | `radar:customEvent` | Server ➔ Client | `{ event: string, payload: any }` |
-| `radar:gameEnded` | Server ➔ Client | `{ results: any }` |
+| `radar:gameEnded` | Server ➔ Client | `{ results: any, reportId?: string \| null }` |
+| `radar:roomFinished` | Server ➔ Client | `{ roomCode: string }` |
+| `radar:reportReady` | Server ➔ Client | `{ reportId: string, roomCode: string }` |
+| `radar:reportError` | Server ➔ Client | `{ roomCode: string, message: string }` |
 | `radar:error` | Server ➔ Client | `{ message: string }` |
 
-### 4.2 Legacy Protocol (Kahoot PoC Compatibility)
-Maintained for backward compatibility with `qonect`:
+### 4.2 Legacy Protocol
 
-| Event Name | Role | Payload | Response / Broadcast |
-|---|---|---|---|
-| `joinAsHost` | Host | `{ sessionId: string \| number }` | Emits `existingPlayers` to host |
-| `joinSession` | Player | `{ sessionId, playerName }` | Emits `existingPlayers` to joiner; `playerJoined` to peers |
-| `startQuiz` | Host | _(none)_ | Dispatches `START_GAME`; emits `quizStarted` |
-| `nextQuestion` | Host | _(none)_ | Dispatches `NEXT_QUESTION`; emits `nextQuestion` or `quizEnded` |
-| `submitAnswer` | Player | `{ questionId, alternativeId }` | Dispatches `SUBMIT_ANSWER`; emits `answerSubmitted` |
-| `getScores` | Any | _(none)_ | Emits `scoresUpdate` with leaderboard |
+The legacy quiz-specific events (`joinAsHost`, `joinSession`, `startQuiz`, `nextQuestion`, `submitAnswer`, `getScores`, `finishQuiz`, `quizStarted`, `questionEnded`, `scoresUpdate`, `quizEnded`, `answerSubmitted`, `existingPlayers`, `playerJoined`, `playerLeft`, `sessionFinished`) have been removed. Do not reintroduce them. All actions must go through `radar:dispatchAction` with `{ type, payload }`. The quiz reducer supports `START_GAME`, `NEXT_QUESTION`, `SUBMIT_ANSWER`, `GET_SCORES`, and `FINISH_GAME`.
 
 ---
 
@@ -126,16 +121,18 @@ npm run test:e2e         # End-to-end tests
 npm run test:cov         # Generate code coverage report
 npm test -- path/to/spec.ts   # Run a specific test suite
 jest path/to/file.spec.ts     # Run a single test file
+node load-test/capacity.js --bots 30   # Load suite: 30 bots against a self-hosted isolated server (use --url to target a running one)
 
 # Code Quality
 npm run lint             # ESLint with auto-fix
 npm run format           # Prettier formatting
 
 # Prisma ORM & Database
-npx prisma migrate dev --name <migration_name> # Generate and apply DB migration
-npx prisma migrate deploy             # Apply pending migrations (used in production)
-npx prisma generate                            # Regenerate Prisma Client
-npx prisma studio                              # Web UI for database inspection
+# (No migration history: the schema is applied with `db push`. The Prisma
+#  Client is regenerated automatically by the prebuild/prestart:dev hooks.)
+npx prisma db push                        # Apply schema to the SQLite database
+npx prisma generate                       # Regenerate Prisma Client (prebuild also runs this)
+npx prisma studio                         # Web UI for database inspection
 
 # Docker
 docker compose up --build -d # Launch Backend (API) + Frontend (Web) containers (hot-reload)

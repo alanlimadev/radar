@@ -141,8 +141,8 @@ Se preferir rodar a aplicação no Node.js local (sem Docker):
 # 1. Instalar as dependências do backend:
 npm install
 
-# 2. Aplicar as migrations do Prisma (SQLite):
-npx prisma migrate dev
+# 2. Aplicar o esquema do Prisma ao banco (SQLite):
+npx prisma db push
 
 # 3. Iniciar o servidor com hot-reload:
 npm run start:dev
@@ -215,23 +215,18 @@ Recomendado para novos jogos ou aplicações construídas sobre o framework:
 | `radar:playerLeft` | `{ playerId, playerName }` | Notificação de desconexão de um jogador. |
 | `radar:stateUpdated` | `{ state, status }` | Estado atualizado e filtrado para o papel do cliente. |
 | `radar:customEvent` | `{ event, payload }` | Eventos específicos gerados pelo reducer do jogo. |
-| `radar:gameEnded` | `{ results }` | Fim de jogo e ranking consolidado. |
+| `radar:gameEnded` | `{ results, reportId }` | Fim de jogo e ranking consolidado. |
+| `radar:roomFinished` | `{ roomCode }` | Sala finalizada manualmente. |
+| `radar:reportReady` / `radar:reportError` | `{ reportId, roomCode }` / `{ message, roomCode }` | Status da persistência do relatório. |
 | `radar:error` | `{ message }` | Mensagem de erro operacional ou de validação. |
 
----
+### 2. Protocolo Legado (Removido)
 
-### 2. Protocolo Legado (PoC Kahoot)
-
-Mantido integralmente para retrocompatibilidade com o frontend `qonect`:
-
-| Evento Cliente | Origem | Ação Correspondente no RADAR |
-|---|---|---|
-| `joinAsHost` | Host | Vincula o socket como host da sessão |
-| `joinSession` | Player | Registra o jogador na sala |
-| `startQuiz` | Host | Dispara ação `START_GAME` |
-| `nextQuestion` | Host | Dispara ação `NEXT_QUESTION` |
-| `submitAnswer` | Player | Dispara ação `SUBMIT_ANSWER` |
-| `getScores` | Ambos | Retorna ranking atualizado |
+Os eventos legados de quiz (`joinAsHost`, `joinSession`, `startQuiz`, `nextQuestion`,
+`submitAnswer`, `getScores`, `finishQuiz`, `quizStarted`, `questionEnded`,
+`scoresUpdate`, `quizEnded`, `answerSubmitted`, `existingPlayers`, `playerJoined`,
+`playerLeft`, `sessionFinished`) foram removidos. O `qonect` e qualquer outro cliente
+devem usar exclusivamente o protocolo universal `radar:*`.
 
 ---
 
