@@ -30,7 +30,7 @@ mkdir -p /build
 echo -e "\n[0/8] Copiando codigo (/src) para o filesystem Linux (/build, sem node_modules/target)..."
 rsync -a \
   --exclude 'node_modules' --exclude 'target' --exclude 'dist' --exclude 'dist-bundle' \
-  --exclude '.git' --exclude '.tanstack' --exclude 'gen' \
+  --exclude '.git' --exclude '.tanstack' --exclude 'gen' --exclude '*.db' --exclude 'prisma/build' \
   /src/radar /build/
 rsync -a \
   --exclude 'node_modules' --exclude 'target' --exclude 'dist' --exclude '.git' --exclude '.tanstack' \
@@ -48,13 +48,17 @@ npm install --no-audit --no-fund
 echo -e "\n[2/8] Compilando backend (nest build)..."
 npm run build
 
-echo -e "\n[3/8] Gerando Prisma Client (engine Linux) + banco template (SQLite)..."
-export DATABASE_URL="file:./radar.db"
+echo -e "\n[3/8] Gerando Prisma Client (engine Linux) + banco template vazio (SQLite)..."
+# O template e sempre gerado do zero em prisma/build/: nunca empacota o banco
+# de desenvolvimento (prisma/radar.db), que pode conter usuarios/quizzes locais.
+export DATABASE_URL="file:./build/radar.db"
 npx prisma generate
 npx prisma db push --skip-generate
 
 echo -e "\n[4/8] Gerando bundle standalone do backend (ncc)..."
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
+# O ncc copia um radar.db vazio para dist-bundle; o bundle final usa apenas index.js.
+rm -f dist-bundle/radar.db
 
 echo -e "\n[5/8] Instalando dependencias e compilando o frontend..."
 cd "$FRONTEND"
@@ -70,10 +74,13 @@ chmod +x "$SERVER/node"
 cp "$BACKEND/dist-bundle/index.js" "$SERVER/index.js"
 rm -rf "$SERVER/client"
 cp -r "$FRONTEND/dist" "$SERVER/client"
-cp "$BACKEND/prisma/radar.db" "$SERVER/radar.db"
+cp "$BACKEND/prisma/build/radar.db" "$SERVER/radar.db"
 mkdir -p "$SERVER/node_modules"
+# Copia apenas o runtime do Prisma: @prisma/engines (~36 MB) e exclusivo da CLI
+# (schema-engine/migrate) e nunca e carregado em runtime pelo servidor embutido.
 rm -rf "$SERVER/node_modules/@prisma" "$SERVER/node_modules/.prisma"
-cp -r "$BACKEND/node_modules/@prisma" "$SERVER/node_modules/@prisma"
+mkdir -p "$SERVER/node_modules/@prisma"
+cp -r "$BACKEND/node_modules/@prisma/client" "$SERVER/node_modules/@prisma/client"
 cp -r "$BACKEND/node_modules/.prisma" "$SERVER/node_modules/.prisma"
 echo "  server/ montado:"
 ls -la "$SERVER"

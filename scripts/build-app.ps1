@@ -27,11 +27,18 @@ if (-not $NodePath -or -not (Test-Path $NodePath)) {
 
 Write-Host "`n[1/6] Compilando Backend (radar)..." -ForegroundColor Yellow
 Set-Location $BackendDir
+# Regenera o Prisma Client antes do tsc: garante que o client nunca fique
+# defasado do schema (causava TS2339) e que o engine em .prisma seja da plataforma correta.
+npx prisma generate
+if ($LASTEXITCODE -ne 0) { throw "Erro ao gerar o Prisma Client (prisma generate)" }
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "Erro ao compilar o backend" }
 
 Write-Host "`n[2/6] Gerando Bundle Standalone do Backend..." -ForegroundColor Yellow
 npx @vercel/ncc build dist/main.js -o dist-bundle --external @prisma/client
+# O ncc copia um radar.db vazio para dist-bundle por causa dos caminhos de template
+# em PrismaService; o bundle final usa apenas index.js, então remove o resto.
+if (Test-Path "dist-bundle\radar.db") { Remove-Item -Force "dist-bundle\radar.db" }
 if ($LASTEXITCODE -ne 0) { throw "Erro ao empacotar com ncc" }
 
 Write-Host "`n[3/6] Compilando Frontend (qonect)..." -ForegroundColor Yellow
@@ -78,7 +85,10 @@ Copy-Item $TemplateDb -Destination (Join-Path $ServerTarget "radar.db") -Force
 
 $ModulesTarget = Join-Path $ServerTarget "node_modules"
 if (-not (Test-Path $ModulesTarget)) { New-Item -ItemType Directory -Force -Path $ModulesTarget | Out-Null }
-Copy-Item -Recurse (Join-Path $BackendDir "node_modules\@prisma") (Join-Path $ModulesTarget "@prisma") -Force
+# Copia apenas o runtime do Prisma. O @prisma/engines (schema-engine/migrate, ~36 MB)
+# é exclusivo da CLI e nunca é carregado em runtime pelo servidor embutido.
+New-Item -ItemType Directory -Force -Path (Join-Path $ModulesTarget "@prisma") | Out-Null
+Copy-Item -Recurse (Join-Path $BackendDir "node_modules\@prisma\client") (Join-Path $ModulesTarget "@prisma\client") -Force
 Copy-Item -Recurse (Join-Path $BackendDir "node_modules\.prisma") (Join-Path $ModulesTarget ".prisma") -Force
 
 Write-Host "`n[5/6] Gerando Instalador Executável com Tauri (NSIS)..." -ForegroundColor Yellow

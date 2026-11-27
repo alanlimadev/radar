@@ -1,6 +1,6 @@
 # Prisma no RADAR — revisão, correções de baixo risco e próximos passos
 
-**Data:** 2026-11-22
+**Data:** 2026-11-22 (correções efetivadas e validadas em 2026-11-26)
 **Status:** Prisma mantido no curto prazo; correções de baixo risco aplicadas.
 **Escopo:** backend `radar/` e scripts de build do instalador desktop (`qonect`).
 
@@ -86,6 +86,15 @@ o cache). Em runtime, o servidor precisa apenas de `@prisma/client` +
 ---
 
 ## 3. O que foi feito (baixo risco)
+
+> **Nota (2026-11-26):** o commit que introduziu este documento (`92aeda7`)
+> continha apenas este arquivo; as mudanças abaixo foram efetivadas, revisadas e
+> revalidadas nesta data. A validação incluiu: boot do servidor embutido com
+> apenas `@prisma/client` + `.prisma` (sem `@prisma/engines`) executando
+> registro/login/quiz com `timeLimitSeconds`, pinagem das versões em `6.12.0`
+> com hooks `prebuild`/`prestart:dev`, e a suíte de carga `load-test/capacity.js`
+> (30/50/100 bots, 100% de handshake, zero timeouts, consistência memória ×
+> relatório confirmada).
 
 | Mudança | Arquivo(s) | Motivo |
 |---|---|---|
